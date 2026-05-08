@@ -1,10 +1,15 @@
-# Autohand C# SDK Documentation
+# C# SDK Documentation
 
-The C# SDK is a thin .NET wrapper around the Autohand CLI JSON-RPC mode. Start with the repository README, then use these documents as the public API grows:
+The C# SDK is a .NET wrapper around the Autohand CLI JSON-RPC mode.
 
-- `README.md` - install, quick start, streaming, and development commands.
-- `examples/` - runnable .NET console apps for high-level agent workflows.
-- `src/Autohand.CodeAgentSdk/` - source-of-truth public types.
+- [Getting Started](./getting-started.md)
+- [API Reference](./API_REFERENCE.md)
+- [Configuration](./configuration.md)
+- [Event Streaming](./event-streaming.md)
+- [Permissions](./permissions.md)
+- [Plan Mode](./plan-mode.md)
+- [SDLC Workflows](./sdlc-workflows.md)
+- [Error Handling](./error-handling.md)
+- [Examples](./examples.md)
 
-The design center is application ergonomics: `Agent` for normal product code, `AutohandSdk` for low-level orchestration, typed event records for common event shapes, and raw `JsonElement` access wherever the CLI moves faster than the SDK.
-
+Canonical Agent SDK docs live at https://autohand.ai/docs/agent-sdk/.
