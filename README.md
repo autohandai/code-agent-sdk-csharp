@@ -1,43 +1,42 @@
-# Code Agent SDK for C#
+# Autohand Code Agent SDK for C#
 
-.NET SDK for controlling Autohand code agents through the CLI JSON-RPC mode.
+.NET SDK for building applications that control Autohand code agents through the Autohand CLI JSON-RPC mode.
+
+**Documentation:** https://autohand.ai/docs/agent-sdk/
 
 **Beta:** this SDK is actively evolving while the Agent SDK APIs stabilize. Pin versions in production and review release notes before upgrading.
 
-## Overview
+## What It Does
 
-This SDK provides a C# wrapper around the Autohand CLI binary, enabling programmatic access to Autohand's autonomous coding agent capabilities via JSON-RPC 2.0 over stdin/stdout.
+The C# SDK wraps the existing Autohand CLI process and gives .NET applications an async API for agent runs:
 
+```text
+.NET app -> Autohand.CodeAgentSdk -> Autohand CLI subprocess -> provider -> model
 ```
-User -> C# SDK (thin wrapper) -> CLI Subprocess (existing binary) -> Provider -> HTTP
-```
 
-The API is designed for .NET application code:
+Use it when you want Autohand inside developer tools, build systems, web services, desktop apps, or internal automation without reimplementing the CLI agent protocol.
 
-- `Agent` and `Run` for the high-level workflow
-- `IAsyncEnumerable<SdkEvent>` for streaming tokens, tools, and permissions
-- `CancellationToken` everywhere long-running work can block
+## Features
+
+- `Agent` and `Run` for high-level application workflows
+- `AutohandSdk` for direct low-level RPC access
+- `IAsyncEnumerable<SdkEvent>` streaming for tokens, tools, permissions, and errors
+- `CancellationToken` support where long-running work can block
 - `await using` cleanup for subprocess lifecycle
-- `System.Text.Json` for structured output and low-level RPC escape hatches
-
-## Other Programming Languages (Beta)
-
-The Agent SDK is available in multiple beta language packages. Use the same CLI-backed SDK model from another programming language:
-
-- [TypeScript](https://github.com/autohandai/code-agent-sdk-typescript) - `Agent`, `Run`, streaming, and JSON helpers for Node and Bun hosts.
-- [Go](https://github.com/autohandai/code-agent-sdk-go) - idiomatic Go package with `context.Context`, typed events, and channel-based streaming.
-- [Python](https://github.com/autohandai/code-agent-sdk-python) - async Python package with `async for` event streams and typed Pydantic models.
-- [Java](https://github.com/autohandai/code-agent-sdk-java) - Java 21 records, sealed events, and virtual-thread-ready APIs.
-- [Swift](https://github.com/autohandai/code-agent-sdk-swift) - SwiftPM package with `Agent`, `Runner`, async streams, tools, hooks, and permissions.
-- [Rust](https://github.com/autohandai/code-agent-sdk-rust) - async Rust crate with Tokio, typed events, and stream-based runs.
-- [C++](https://github.com/autohandai/code-agent-sdk-cpp) - modern C++20 package with CMake targets and typed event callbacks.
-- [C#](https://github.com/autohandai/code-agent-sdk-csharp) - this package, with `IAsyncEnumerable`, `CancellationToken`, and `System.Text.Json`.
+- `System.Text.Json` for structured output and low-level JSON-RPC escape hatches
+- Example parity with the TypeScript SDK examples
 
 ## Requirements
 
 - .NET 8 or later
 - Autohand CLI installed and authenticated
 - A configured provider in `~/.autohand/config.json`, or environment variables accepted by the CLI
+
+Set `AUTOHAND_CLI_PATH` when you want to force a local CLI binary:
+
+```bash
+export AUTOHAND_CLI_PATH=/path/to/autohand
+```
 
 ## Installation
 
@@ -47,18 +46,9 @@ The NuGet package name is planned as `Autohand.CodeAgentSdk`:
 dotnet add package Autohand.CodeAgentSdk
 ```
 
-For local development:
-
-```bash
-dotnet restore
-dotnet build src/Autohand.CodeAgentSdk/Autohand.CodeAgentSdk.csproj
-```
+Until the package is published, reference the project or source repository directly from your solution.
 
 ## Quick Start
-
-### High-Level API
-
-Use `Agent` for application code. It gives you an explicit run lifecycle while keeping CLI subprocess and JSON-RPC details out of your app.
 
 ```csharp
 using Autohand.CodeAgentSdk;
@@ -69,51 +59,64 @@ await using var agent = await Agent.CreateAsync(new AgentOptions
     Instructions = "Review code with staff-level C# judgement.",
 });
 
-var run = agent.Send("Review this repository for release readiness");
+var run = agent.Send("Review this repository for release readiness.");
 
 await foreach (var item in run.StreamAsync())
 {
-    if (item is MessageUpdateEvent message)
+    switch (item)
     {
-        Console.Write(message.Delta);
+        case MessageUpdateEvent message:
+            Console.Write(message.Delta);
+            break;
+        case PermissionRequestEvent permission:
+            Console.Error.WriteLine($"permission requested: {permission.Description}");
+            break;
     }
 }
 
 var result = await run.WaitAsync();
-Console.WriteLine(result.Text);
+Console.WriteLine($"\nRun {result.Id} finished with {result.Status}");
 ```
 
-For simple one-shot tasks:
+## Structured JSON
 
 ```csharp
-var result = await agent.RunAsync("Summarize the API surface");
-Console.WriteLine(result.Text);
-```
+using Autohand.CodeAgentSdk;
 
-For JSON output:
-
-```csharp
-public sealed record ReleaseRisk(string Summary, Risk[] Risks);
-public sealed record Risk(string Title, string Severity);
+await using var agent = await Agent.CreateAsync(new AgentOptions
+{
+    WorkingDirectory = ".",
+    Instructions = "Prefer concise release-readiness analysis.",
+});
 
 var risk = await agent.RunJsonAsync<ReleaseRisk>(
-    "Assess publish readiness",
+    "Assess this SDK repository for publish readiness. Do not execute commands.",
     new JsonRunOptions
     {
         SchemaName = "ReleaseRisk",
         Schema = new
         {
             summary = "string",
-            risks = new[] { new { title = "string", severity = "low | medium | high" } },
+            risks = new[]
+            {
+                new { title = "string", severity = "low | medium | high", mitigation = "string" },
+            },
         },
     });
+
+Console.WriteLine(risk.Summary);
+
+public sealed record ReleaseRisk(string Summary, Risk[] Risks);
+public sealed record Risk(string Title, string Severity, string Mitigation);
 ```
 
-### Low-Level API
+## Low-Level Control
 
-Use `AutohandSdk` when you need direct control over the JSON-RPC surface.
+Use `AutohandSdk` when your host needs direct access to the JSON-RPC control surface:
 
 ```csharp
+using Autohand.CodeAgentSdk;
+
 await using var sdk = new AutohandSdk(new AutohandOptions
 {
     WorkingDirectory = ".",
@@ -122,43 +125,73 @@ await using var sdk = new AutohandSdk(new AutohandOptions
 });
 
 await sdk.StartAsync();
+await sdk.SetPlanModeAsync(true);
 
-await foreach (var item in sdk.StreamPromptAsync("Analyze the codebase"))
+await foreach (var item in sdk.StreamPromptAsync("Create a discovery plan for this SDK change."))
 {
     Console.WriteLine(item.Type);
 }
-
-var state = await sdk.GetStateAsync();
-Console.WriteLine(state);
 ```
+
+## Examples
+
+The `examples/` directory mirrors the TypeScript SDK example inventory:
+
+- `01-hello-agent`
+- `02-streaming-query`
+- `03-code-reviewer`
+- `04-bash-command`
+- `05-file-editor`
+- `06-prompt-skills`
+- `07-direct-skills`
+- `08-memory-management`
+- `10-multi-tool-reasoning`
+- `13-permissions`
+- `20-sdlc-discovery-plan`
+- `21-sdlc-gated-implementation`
+- `22-sdlc-release-readiness`
+- `23-system-prompts`
+- `24-high-level-agent`
+- `25-structured-json`
+- `basic-agent`
+- `basic-usage`
+- `loop-strategies`
+- `permission-handling`
+- `sdk-control-features`
+- `streaming`
+
+Run an example with:
+
+```bash
+dotnet run --project examples/01-hello-agent/Autohand.Examples.HelloAgent.csproj
+```
+
+Live examples require an authenticated Autohand CLI and may ask for tool permissions depending on your CLI configuration.
 
 ## Development
 
 ```bash
 dotnet restore
 dotnet format --verify-no-changes
-dotnet build src/Autohand.CodeAgentSdk/Autohand.CodeAgentSdk.csproj
+dotnet build Autohand.CodeAgentSdk.sln
 dotnet test tests/Autohand.CodeAgentSdk.Tests/Autohand.CodeAgentSdk.Tests.csproj
-```
-
-## Examples
-
-The `examples/` directory mirrors the TypeScript SDK examples with C# projects for streaming, permissions, structured JSON, plan mode, high-level agents, and SDK control methods.
-
-```bash
 ./scripts/validate-examples.sh
-
-for project in examples/*/*.csproj; do
-  dotnet build "$project"
-done
 ```
 
-Live examples require an authenticated CLI. Set `AUTOHAND_CLI_PATH` only when you want to force a local CLI binary.
+The test suite includes structured-output parsing tests and example inventory checks. The example validator builds every mirrored example project when `dotnet` is available.
 
-## Repository
+## Other SDKs
 
-This repo is intended to live at:
+- [TypeScript](https://github.com/autohandai/code-agent-sdk-typescript)
+- [Python](https://github.com/autohandai/code-agent-sdk-python)
+- [Go](https://github.com/autohandai/code-agent-sdk-go)
+- [Java](https://github.com/autohandai/code-agent-sdk-java)
+- [Swift](https://github.com/autohandai/code-agent-sdk-swift)
+- [Rust](https://github.com/autohandai/code-agent-sdk-rust)
+- [C++](https://github.com/autohandai/code-agent-sdk-cpp)
 
-```text
-https://github.com/autohandai/code-agent-sdk-csharp
-```
+## Support
+
+- SDK docs: https://autohand.ai/docs/agent-sdk/
+- Issues: https://github.com/autohandai/code-agent-sdk-csharp/issues
+- Security reports: security@autohand.ai
