@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>Autohand.CodeAgentSdk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Autohand</Authors>
+    <Company>Autohand</Company>
+    <Description>.NET SDK for controlling Autohand code agents through the CLI JSON-RPC mode.</Description>
+    <PackageTags>autohand;agent;sdk;json-rpc;cli-wrapper;ai</PackageTags>
+    <PackageProjectUrl>https://autohand.ai/sdk/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/autohandai/code-agent-sdk-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>
+
