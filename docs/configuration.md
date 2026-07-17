@@ -43,6 +43,14 @@ Common options:
 - `AdditionalDirectories`: extra workspace roots.
 - `Skills`: skills available to the agent.
 - `Environment`: environment variables for the CLI subprocess.
+- `Bare`, `IdleLogout`, `ForkSession`: current long-running runtime controls.
+- session, AGENTS.md, token/compaction, skill-source, prompt-file, MCP, agents,
+  plugin, and display-language options map to their exact CLI flags.
+- `Features`: typed feature settings applied through RPC after startup.
+
+For Autohand AI, set `Provider = "autohandai"`, `ApiKey`, optional `BaseUrl`,
+and `AutohandAiPlan`. The SDK maps them to the CLI's `AUTOHAND_AI_*`
+environment variables without placing credentials on the process command line.
 
 ## System Prompts
 

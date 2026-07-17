@@ -22,6 +22,7 @@ public sealed class ExampleInventoryTests
         "23-system-prompts",
         "24-high-level-agent",
         "25-structured-json",
+        "27-autoresearch-ledger",
         "basic-agent",
         "basic-usage",
         "loop-strategies",

@@ -24,6 +24,7 @@ Use it when you want Autohand inside developer tools, build systems, web service
 - `CancellationToken` support where long-running work can block
 - `await using` cleanup for subprocess lifecycle
 - `System.Text.Json` for structured output and low-level JSON-RPC escape hatches
+- Typed slash commands, persistent goals, and the complete replayable autoresearch ledger
 - Example parity with the TypeScript SDK examples
 
 ## Requirements
@@ -133,6 +134,32 @@ await foreach (var item in sdk.StreamPromptAsync("Create a discovery plan for th
 }
 ```
 
+## Replayable Autoresearch
+
+The .NET API mirrors the TypeScript v1.0.3 autoresearch contract with typed
+parameters and top-level results:
+
+```csharp
+var started = await agent.StartAutoresearchAsync(new AutoresearchStartParams(
+    "Reduce test runtime without regressions")
+{
+    MetricName = "total_ms",
+    MetricUnit = "ms",
+    Direction = "lower",
+    MeasureCommand = "dotnet test",
+    MaxIterations = 12,
+    Sampling = new AutoresearchSamplingOptions { MinSamples = 3, MaxSamples = 7 },
+});
+
+var history = await agent.GetAutoresearchHistoryAsync();
+var pareto = await agent.GetAutoresearchParetoAsync();
+var preview = await agent.PruneAutoresearchAsync(new AutoresearchPruneParams { DryRun = true });
+await agent.StopAutoresearchAsync();
+```
+
+See [Replayable Autoresearch](./docs/autoresearch.md) for replay, rescoring,
+comparison, Pareto analysis, pinning, and retention safety.
+
 ## Examples
 
 The `examples/` directory mirrors the TypeScript SDK example inventory:
@@ -153,6 +180,7 @@ The `examples/` directory mirrors the TypeScript SDK example inventory:
 - `23-system-prompts`
 - `24-high-level-agent`
 - `25-structured-json`
+- `27-autoresearch-ledger`
 - `basic-agent`
 - `basic-usage`
 - `loop-strategies`
@@ -179,6 +207,7 @@ Live examples require an authenticated Autohand CLI and may ask for tool permiss
 - [SDLC Workflows](./docs/sdlc-workflows.md)
 - [Error Handling](./docs/error-handling.md)
 - [Examples](./docs/examples.md)
+- [Replayable Autoresearch](./docs/autoresearch.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security](./SECURITY.md)
 

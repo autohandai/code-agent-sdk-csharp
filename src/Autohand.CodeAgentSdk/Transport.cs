@@ -6,7 +6,20 @@ using System.Threading.Channels;
 
 namespace Autohand.CodeAgentSdk;
 
-internal sealed class Transport : IAsyncDisposable
+internal interface ITransport : IAsyncDisposable
+{
+    bool IsStarted { get; }
+    Task StartAsync(CancellationToken cancellationToken = default);
+    Task StopAsync(CancellationToken cancellationToken = default);
+    Task<JsonElement> RequestAsync(
+        string method,
+        object? parameters = null,
+        CancellationToken cancellationToken = default);
+    IAsyncEnumerable<SdkEvent> EventsAsync(CancellationToken cancellationToken = default);
+    bool TryReadEvent(out SdkEvent? item);
+}
+
+internal sealed class Transport : ITransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AutohandOptions _options;
@@ -50,8 +63,7 @@ internal sealed class Transport : IAsyncDisposable
             startInfo.ArgumentList.Add(argument);
         }
 
-        startInfo.Environment["AUTOHAND_STREAM_TOOL_OUTPUT"] = "1";
-        foreach (var (key, value) in _options.Environment)
+        foreach (var (key, value) in BuildEnvironmentOverrides())
         {
             if (value is not null)
             {
@@ -176,14 +188,30 @@ internal sealed class Transport : IAsyncDisposable
         _process?.Dispose();
     }
 
-    private IReadOnlyList<string> BuildArguments()
+    internal IReadOnlyList<string> BuildArguments()
     {
         var args = new List<string> { "--mode", "rpc" };
 
+        AddFlag(args, _options.Bare, "--bare");
+        AddFlag(args, _options.IdleLogout == false, "--no-idle-logout");
         AddFlag(args, _options.Unrestricted, "--unrestricted");
         AddFlag(args, _options.AutoMode, "--auto-mode");
         AddFlag(args, _options.AutoSkill, "--auto-skill");
         AddFlag(args, _options.AutoCommit, "-c");
+        AddFlag(args, _options.PersistSession, "--persist-session");
+        AddFlag(args, _options.Resume, "--resume");
+        AddFlag(args, _options.ContinueSession, "--continue");
+        AddFlag(args, _options.AgentsMdCreate, "--agents-md-create");
+        AddFlag(args, _options.AgentsMdAutoUpdate, "--agents-md-auto-update");
+
+        if (_options.AgentsMdEnable == true)
+        {
+            args.Add("--agents-md");
+        }
+        else if (_options.AgentsMdEnable == false)
+        {
+            args.Add("--no-agents-md");
+        }
 
         if (_options.ContextCompact == true)
         {
@@ -197,10 +225,24 @@ internal sealed class Transport : IAsyncDisposable
         AddValue(args, "--max-iterations", _options.MaxIterations);
         AddValue(args, "--max-runtime", _options.MaxRuntimeMinutes);
         AddValue(args, "--max-cost", _options.MaxCost);
+        AddValue(args, "--session-id", _options.SessionId);
+        AddValue(args, "--session-path", _options.SessionPath);
+        AddValue(args, "--auto-save-interval", _options.AutoSaveInterval);
+        AddValue(args, "--max-tokens", _options.MaxTokens);
+        AddValue(args, "--compression-threshold", _options.CompressionThreshold);
+        AddValue(args, "--summarization-threshold", _options.SummarizationThreshold);
+        AddValue(args, "--agents-md-path", _options.AgentsMdPath);
         AddValue(args, "--model", _options.Model);
         AddValue(args, "--temperature", _options.Temperature);
         AddValue(args, "--sys-prompt", _options.SystemPrompt);
         AddValue(args, "--append-sys-prompt", _options.AppendSystemPrompt);
+        AddValue(args, "--fork", _options.ForkSession);
+        AddValue(args, "--display-language", _options.DisplayLanguage);
+        AddValue(args, "--system-prompt-file", _options.SystemPromptFile);
+        AddValue(args, "--append-system-prompt-file", _options.AppendSystemPromptFile);
+        AddValue(args, "--mcp-config", _options.McpConfig);
+        AddValue(args, "--agents", _options.Agents);
+        AddValue(args, "--plugin-dir", _options.PluginDirectory);
         AddValue(args, "--yolo", _options.Yolo);
         AddValue(args, "--yolo-timeout", _options.YoloTimeoutSeconds);
 
@@ -210,6 +252,14 @@ internal sealed class Transport : IAsyncDisposable
             args.Add(string.Join(",", _options.Skills));
         }
 
+        if (_options.SkillSources.Count > 0)
+        {
+            args.Add("--skill-sources");
+            args.Add(string.Join(",", _options.SkillSources));
+        }
+
+        AddFlag(args, _options.InstallMissingSkills, "--install-missing-skills");
+
         foreach (var directory in _options.AdditionalDirectories)
         {
             args.Add("--add-dir");
@@ -218,6 +268,22 @@ internal sealed class Transport : IAsyncDisposable
 
         args.AddRange(_options.ExtraArgs);
         return args;
+    }
+
+    internal IReadOnlyDictionary<string, string?> BuildEnvironmentOverrides()
+    {
+        var environment = new Dictionary<string, string?>(_options.Environment, StringComparer.Ordinal)
+        {
+            ["AUTOHAND_STREAM_TOOL_OUTPUT"] = "1",
+        };
+        if (string.Equals(_options.Provider, "autohandai", StringComparison.OrdinalIgnoreCase))
+        {
+            environment["AUTOHAND_AI_PLAN"] = _options.AutohandAiPlan ?? "cloud";
+            environment["AUTOHAND_AI_API_KEY"] = _options.ApiKey;
+            environment["AUTOHAND_AI_BASE_URL"] = _options.BaseUrl;
+        }
+
+        return environment;
     }
 
     private static void AddFlag(List<string> args, bool enabled, string flag)

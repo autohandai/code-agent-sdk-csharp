@@ -9,4 +9,4 @@ TestResults/
 *.snupkg
 coverage/
 coverage.cobertura.xml
-
+.autohand/

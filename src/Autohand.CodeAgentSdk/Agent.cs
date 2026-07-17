@@ -29,6 +29,15 @@ public sealed class Agent : IAsyncDisposable
         return new Run(_sdk, prompt, options);
     }
 
+    public Run Command(string command, string? arguments = null, PromptOptions? options = null) =>
+        Send(AutohandSdk.FormatSlashCommand(command, arguments), options);
+
+    public Run DeepResearch(string topic, PromptOptions? options = null) =>
+        Command("/deep-research", topic, options);
+
+    public Run Autoresearch(string objective, PromptOptions? options = null) =>
+        Command("/autoresearch", objective, options);
+
     public IAsyncEnumerable<SdkEvent> StreamAsync(
         string prompt,
         PromptOptions? options = null,
@@ -77,6 +86,88 @@ public sealed class Agent : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         _sdk.SetPlanModeAsync(enabled, cancellationToken);
 
+    public Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetSupportedCommandsAsync(cancellationToken);
+
+    public Task<bool> SupportsCommandAsync(
+        string command,
+        CancellationToken cancellationToken = default) =>
+        _sdk.SupportsCommandAsync(command, cancellationToken);
+
+    public Task<JsonElement> GetGoalAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetGoalAsync(cancellationToken);
+
+    public Task<JsonElement> CreateGoalAsync(
+        GoalParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.CreateGoalAsync(parameters, cancellationToken);
+
+    public Task<JsonElement> UpdateGoalAsync(
+        GoalParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.UpdateGoalAsync(parameters, cancellationToken);
+
+    public Task<JsonElement> ClearGoalAsync(CancellationToken cancellationToken = default) =>
+        _sdk.ClearGoalAsync(cancellationToken);
+
+    public Task<JsonElement> QueueGoalAsync(
+        GoalParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.QueueGoalAsync(parameters, cancellationToken);
+
+    public Task<JsonElement> StartQueuedGoalAsync(CancellationToken cancellationToken = default) =>
+        _sdk.StartQueuedGoalAsync(cancellationToken);
+
+    public Task<JsonElement> ListGoalTemplatesAsync(CancellationToken cancellationToken = default) =>
+        _sdk.ListGoalTemplatesAsync(cancellationToken);
+
+    public Task<AutoresearchStartResult> StartAutoresearchAsync(
+        AutoresearchStartParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.StartAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<AutoresearchStatusResult> GetAutoresearchStatusAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetAutoresearchStatusAsync(cancellationToken);
+
+    public Task<AutoresearchStopResult> StopAutoresearchAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.StopAutoresearchAsync(cancellationToken);
+
+    public Task<AutoresearchHistoryResult> GetAutoresearchHistoryAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetAutoresearchHistoryAsync(cancellationToken);
+
+    public Task<AutoresearchReplayResult> ReplayAutoresearchAsync(
+        AutoresearchReplayParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.ReplayAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<AutoresearchRescoreResult> RescoreAutoresearchAsync(
+        AutoresearchRescoreParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.RescoreAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<AutoresearchCompareResult> CompareAutoresearchAsync(
+        AutoresearchCompareParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.CompareAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<AutoresearchParetoResult> GetAutoresearchParetoAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetAutoresearchParetoAsync(cancellationToken);
+
+    public Task<AutoresearchPinResult> PinAutoresearchAsync(
+        AutoresearchPinParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.PinAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<AutoresearchPruneResult> PruneAutoresearchAsync(
+        AutoresearchPruneParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        _sdk.PruneAutoresearchAsync(parameters, cancellationToken);
+
     public ValueTask DisposeAsync() => _sdk.DisposeAsync();
 
     private static AgentOptions NormalizeOptions(AgentOptions options)
@@ -102,4 +193,3 @@ public sealed class Agent : IAsyncDisposable
         return $"{existing}\n\n{next}";
     }
 }
-

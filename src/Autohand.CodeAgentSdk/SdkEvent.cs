@@ -8,7 +8,13 @@ public sealed record AgentEndEvent(JsonElement Raw) : SdkEvent("agent_end", Raw)
 
 public sealed record TurnStartEvent(JsonElement Raw) : SdkEvent("turn_start", Raw);
 
-public sealed record TurnEndEvent(JsonElement Raw) : SdkEvent("turn_end", Raw);
+public sealed record TurnEndEvent(
+    long? TokensUsed,
+    string? TokensUsageStatus,
+    long? DurationMs,
+    double? ContextPercent,
+    JsonElement Raw)
+    : SdkEvent("turn_end", Raw);
 
 public sealed record MessageStartEvent(JsonElement Raw) : SdkEvent("message_start", Raw);
 
@@ -36,6 +42,15 @@ public sealed record PermissionRequestEvent(
 
 public sealed record ErrorEvent(string? Message, JsonElement Raw) : SdkEvent("error", Raw);
 
+public sealed record AutoresearchEvent(
+    string? Phase,
+    string? Operation,
+    bool? Success,
+    string? AttemptId,
+    bool? Applied,
+    JsonElement Raw)
+    : SdkEvent("autoresearch", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -52,7 +67,12 @@ internal static class SdkEventParser
             "agent_start" => new AgentStartEvent(raw),
             "agent_end" => new AgentEndEvent(raw),
             "turn_start" => new TurnStartEvent(raw),
-            "turn_end" => new TurnEndEvent(raw),
+            "turn_end" => new TurnEndEvent(
+                GetLong(raw, "tokensUsed"),
+                GetString(raw, "tokensUsageStatus"),
+                GetLong(raw, "durationMs"),
+                GetDouble(raw, "contextPercent"),
+                raw),
             "message_start" => new MessageStartEvent(raw),
             "message_update" => new MessageUpdateEvent(GetString(raw, "delta"), raw),
             "message_end" => new MessageEndEvent(GetString(raw, "content"), raw),
@@ -74,6 +94,13 @@ internal static class SdkEventParser
                 GetString(raw, "description"),
                 raw),
             "error" => new ErrorEvent(GetString(raw, "message") ?? GetString(raw, "error"), raw),
+            "autoresearch" => new AutoresearchEvent(
+                GetString(raw, "phase") ?? AutoresearchPhase(method),
+                GetString(raw, "operation"),
+                GetBool(raw, "success"),
+                GetString(raw, "attemptId"),
+                GetBool(raw, "applied"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -92,10 +119,23 @@ internal static class SdkEventParser
             "autohand.toolUpdate" => "tool_update",
             "autohand.toolEnd" => "tool_end",
             "autohand.permissionRequest" => "permission_request",
+            "autohand.autoresearch.start" => "autoresearch",
+            "autohand.autoresearch.status" => "autoresearch",
+            "autohand.autoresearch.pause" => "autoresearch",
+            "autohand.autoresearch.event" => "autoresearch",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
                 : method,
+        };
+
+    private static string? AutoresearchPhase(string method) =>
+        method switch
+        {
+            "autohand.autoresearch.start" => "start",
+            "autohand.autoresearch.status" => "status",
+            "autohand.autoresearch.pause" => "pause",
+            _ => null,
         };
 
     private static string? GetString(JsonElement element, string property)
@@ -124,5 +164,22 @@ internal static class SdkEventParser
             _ => null,
         };
     }
-}
 
+    private static long? GetLong(JsonElement element, string property)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty(property, out var value) &&
+            value.TryGetInt64(out var parsed)
+                ? parsed
+                : null;
+    }
+
+    private static double? GetDouble(JsonElement element, string property)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty(property, out var value) &&
+            value.TryGetDouble(out var parsed)
+                ? parsed
+                : null;
+    }
+}

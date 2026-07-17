@@ -16,6 +16,10 @@ Common properties:
 - `Unrestricted`, `AutoMode`, `AutoSkill`, `AutoCommit`: execution mode flags.
 - `ContextCompact`: enable or disable context compaction.
 - `Yolo`, `YoloTimeoutSeconds`: unattended permission policy.
+- current session, AGENTS.md, token/compaction, prompt-file, MCP, agents, plugin,
+  bare, idle-logout, fork, and display-language controls.
+- `Features`: settings applied through RPC immediately after startup.
+- `Provider = "autohandai"` plus API key, base URL, and plan environment wiring.
 
 ## `AutohandSdk`
 
@@ -33,7 +37,38 @@ Important methods:
 - `SetModelAsync(model)`
 - `GetStateAsync()`
 - `GetMessagesAsync()`
+- `GetSupportedCommandsAsync()` / `SupportsCommandAsync(command)`
+- `StreamCommandAsync(command, arguments, options)`
+- `ApplyFlagSettingsAsync(settings)`
 - `PermissionResponseAsync(requestId, decision)`
+
+### Persistent goals
+
+- `GetGoalAsync()`
+- `CreateGoalAsync(parameters)`
+- `UpdateGoalAsync(parameters)`
+- `ClearGoalAsync()`
+- `QueueGoalAsync(parameters)`
+- `StartQueuedGoalAsync()`
+- `ListGoalTemplatesAsync()`
+
+`GoalParams` uses the CLI's exact snake-case budget keys.
+
+### Replayable autoresearch
+
+- `StartAutoresearchAsync(parameters)`
+- `GetAutoresearchStatusAsync()`
+- `StopAutoresearchAsync()`
+- `GetAutoresearchHistoryAsync()`
+- `ReplayAutoresearchAsync(parameters)`
+- `RescoreAutoresearchAsync(parameters)`
+- `CompareAutoresearchAsync(parameters)`
+- `GetAutoresearchParetoAsync()`
+- `PinAutoresearchAsync(parameters)`
+- `PruneAutoresearchAsync(parameters)`
+
+See [Replayable Autoresearch](autoresearch.md) for typed parameter records,
+evaluation/decision JSON, and safety behavior.
 
 ## `Agent`
 
@@ -54,12 +89,16 @@ Methods:
 - `Agent.CreateAsync(options)`
 - `Agent.FromSdk(sdk)`
 - `Send(prompt, options)`
+- `Command(command, arguments, options)`
+- `DeepResearch(topic, options)`
+- `Autoresearch(objective, options)`
 - `RunAsync(prompt, options)`
 - `RunJsonAsync<T>(prompt, jsonOptions, promptOptions)`
 - `AllowPermissionAsync(requestId)`
 - `DenyPermissionAsync(requestId)`
 - `SuggestPermissionAlternativeAsync(requestId, alternative)`
 - `SetPlanModeAsync(enabled)`
+- persistent-goal and typed autoresearch methods matching `AutohandSdk`
 
 ## `Run`
 
@@ -78,6 +117,7 @@ Common event records:
 
 - `AgentStartEvent`
 - `TurnStartEvent`
+- `TurnEndEvent` with token, usage-status, duration, and context fields
 - `MessageUpdateEvent`
 - `MessageEndEvent`
 - `ToolStartEvent`
@@ -85,6 +125,7 @@ Common event records:
 - `ToolEndEvent`
 - `PermissionRequestEvent`
 - `ErrorEvent`
+- `AutoresearchEvent`
 - `UnknownEvent`
 
 ## Structured JSON

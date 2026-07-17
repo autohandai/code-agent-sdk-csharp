@@ -23,6 +23,10 @@ await foreach (var item in sdk.StreamPromptAsync("Explain closures in one senten
 - `ToolEndEvent`: a tool completed.
 - `PermissionRequestEvent`: host approval is required.
 - `ErrorEvent`: agent or transport error.
+- `TurnEndEvent`: typed `TokensUsed`, `TokensUsageStatus`, `DurationMs`, and
+  `ContextPercent` values when the CLI reports them.
+- `AutoresearchEvent`: lifecycle and ledger-operation notifications with typed
+  phase, operation, success, attempt ID, and applied state.
 
 ## Handling Permissions While Streaming
 
