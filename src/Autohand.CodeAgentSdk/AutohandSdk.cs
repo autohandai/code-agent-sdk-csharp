@@ -230,6 +230,14 @@ public sealed class AutohandSdk : IAsyncDisposable
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         RequestTypedAsync<ResetResult>("autohand.reset", new { }, cancellationToken);
 
+    public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
+        BrowserHandoffCreateParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<BrowserHandoffCreateResult>(
+            "autohand.browserHandoff.create",
+            parameters ?? new BrowserHandoffCreateParams(),
+            cancellationToken);
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {

@@ -186,6 +186,27 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task CreatesBrowserHandoffWithExactCamelCaseParameters()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+        var parameters = new BrowserHandoffCreateParams(
+            "extension-1",
+            "https://example.test/install");
+
+        var result = await agent.CreateBrowserHandoffAsync(parameters);
+
+        Assert.Equal("handoff-token", result.Token);
+        Assert.Equal("browser-session", result.SessionId);
+        Assert.Equal("https://example.test/handoff", result.Url);
+        var call = transport.Call("autohand.browserHandoff.create").Parameters;
+        Assert.Equal("extension-1", call.GetProperty("extensionId").GetString());
+        Assert.Equal("https://example.test/install", call.GetProperty("installUrl").GetString());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -373,6 +394,8 @@ public sealed class ParityTests
             var json = method switch
             {
                 "autohand.reset" => """{"sessionId":"reset-session"}""",
+                "autohand.browserHandoff.create" =>
+                    """{"token":"handoff-token","sessionId":"browser-session","workspaceRoot":"/workspace","createdAt":"2026-07-20T00:00:00.000Z","expiresAt":"2026-07-20T00:10:00.000Z","url":"https://example.test/handoff"}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",

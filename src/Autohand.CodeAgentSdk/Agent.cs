@@ -130,6 +130,11 @@ public sealed class Agent : IAsyncDisposable
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         _sdk.ResetAsync(cancellationToken);
 
+    public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
+        BrowserHandoffCreateParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        _sdk.CreateBrowserHandoffAsync(parameters, cancellationToken);
+
     public Task<AutoresearchStartResult> StartAutoresearchAsync(
         AutoresearchStartParams parameters,
         CancellationToken cancellationToken = default) =>

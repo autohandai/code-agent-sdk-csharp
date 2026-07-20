@@ -179,6 +179,7 @@ typed contracts.
 ## Session and Autonomous Control
 
 - `ResetAsync()` clears the conversation and returns the new session ID.
+- `CreateBrowserHandoffAsync()` creates a typed one-time browser handoff.
 
 ## Examples
 
