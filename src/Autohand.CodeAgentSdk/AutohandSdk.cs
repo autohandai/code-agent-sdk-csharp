@@ -485,6 +485,22 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.directoryAccessAcknowledged", new { requestId }, cancellationToken);
     }
 
+    public Task<ChangesDecisionResult> DecideChangesAsync(
+        ChangesDecisionParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentException.ThrowIfNullOrWhiteSpace(parameters.BatchId);
+        if (parameters.Action == ChangesDecisionAction.AcceptSelected &&
+            parameters.SelectedChangeIds is not { Count: > 0 })
+        {
+            throw new ArgumentException("AcceptSelected requires at least one change ID.", nameof(parameters));
+        }
+
+        return RequestTypedAsync<ChangesDecisionResult>(
+            "autohand.changesDecision", parameters, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);
