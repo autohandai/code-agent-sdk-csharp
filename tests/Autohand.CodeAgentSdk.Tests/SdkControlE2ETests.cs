@@ -329,6 +329,24 @@ public sealed class SdkControlE2ETests
         Assert.Equal(new[] { "README.md", "project.csproj" }, value.MentionedFiles);
     }
 
+    [Fact]
+    public async Task StreamsTypedPostResponseHookEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<HookPostResponseEvent>(
+            sdk,
+            "autohand.hook.postResponse",
+            new { tokensUsed = 640, tokensUsageStatus = "actual", toolCallsCount = 2, duration = 250 });
+
+        Assert.Equal(TokenUsageStatus.Actual, value.TokensUsageStatus);
+        Assert.Equal(2, value.ToolCallsCount);
+        Assert.Equal(250, value.Duration);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,

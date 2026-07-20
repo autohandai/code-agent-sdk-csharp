@@ -92,6 +92,20 @@ public sealed record HookPrePromptEvent(
     JsonElement Raw)
     : SdkEvent("hook_pre_prompt", Raw);
 
+public enum TokenUsageStatus
+{
+    Actual,
+    Unavailable,
+}
+
+public sealed record HookPostResponseEvent(
+    long? TokensUsed,
+    TokenUsageStatus? TokensUsageStatus,
+    int? ToolCallsCount,
+    long? Duration,
+    JsonElement Raw)
+    : SdkEvent("hook_post_response", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -174,6 +188,12 @@ internal static class SdkEventParser
                 GetString(raw, "instruction"),
                 GetStringList(raw, "mentionedFiles"),
                 raw),
+            "hook_post_response" => new HookPostResponseEvent(
+                GetLong(raw, "tokensUsed"),
+                ParseTokenUsageStatus(GetString(raw, "tokensUsageStatus")),
+                GetInt(raw, "toolCallsCount"),
+                GetLong(raw, "duration"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -202,6 +222,7 @@ internal static class SdkEventParser
             "autohand.hook.preTool" => "hook_pre_tool",
             "autohand.hook.postTool" => "hook_post_tool",
             "autohand.hook.prePrompt" => "hook_pre_prompt",
+            "autohand.hook.postResponse" => "hook_post_response",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
@@ -290,6 +311,14 @@ internal static class SdkEventParser
 
         return value.EnumerateObject().ToDictionary(item => item.Name, item => item.Value.Clone());
     }
+
+    private static TokenUsageStatus? ParseTokenUsageStatus(string? value) =>
+        value switch
+        {
+            "actual" => TokenUsageStatus.Actual,
+            "unavailable" => TokenUsageStatus.Unavailable,
+            _ => null,
+        };
 
     private static double? GetDouble(JsonElement element, string property)
     {
