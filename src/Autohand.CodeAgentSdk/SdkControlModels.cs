@@ -356,3 +356,5 @@ internal sealed class ToolRegistryScopeJsonConverter : JsonConverter<ToolRegistr
     public override void Write(Utf8JsonWriter writer, ToolRegistryScope value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
+
+public sealed record ContextCompactionResult(bool Enabled);

@@ -646,6 +646,12 @@ public sealed class AutohandSdk : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         RequestTypedAsync<ToolsRegistryResult>("autohand.getToolsRegistry", new { }, cancellationToken);
 
+    public Task<ContextCompactionResult> SetContextCompactAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<ContextCompactionResult>(
+            "autohand.setContextCompact", new { enabled }, cancellationToken);
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

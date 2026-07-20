@@ -213,6 +213,19 @@ public sealed class SdkControlE2ETests
         Assert.Equal("Invalid schema", Assert.Single(result.Diagnostics).Reason);
     }
 
+    [Fact]
+    public async Task SetsContextCompactionThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.SetContextCompactAsync(true);
+
+        Assert.True(result.Enabled);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {
