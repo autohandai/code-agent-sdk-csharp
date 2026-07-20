@@ -153,6 +153,21 @@ public sealed class SdkControlE2ETests
         Assert.True(result.Success);
     }
 
+    [Fact]
+    public async Task GetsProjectLearningRecommendationsThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.RecommendLearnAsync(new LearnRecommendationParams(true));
+
+        Assert.True(result.Success);
+        Assert.Equal(LearnAuditStatus.Outdated, Assert.Single(result.Audit).Status);
+        Assert.Equal("dotnet-8", Assert.Single(result.Recommendations).Slug);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

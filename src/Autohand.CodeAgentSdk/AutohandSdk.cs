@@ -627,6 +627,12 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.mcp.invokeResponse", parameters, cancellationToken);
     }
 
+    public Task<LearnRecommendationResult> RecommendLearnAsync(
+        LearnRecommendationParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<LearnRecommendationResult>(
+            "autohand.learn.recommend", parameters ?? new LearnRecommendationParams(), cancellationToken);
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

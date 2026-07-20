@@ -193,3 +193,40 @@ public sealed record McpInvocationResponseParams(
     string? Error = null);
 
 public sealed record McpInvocationResponseResult(bool Success);
+
+public sealed record LearnRecommendationParams(bool? Deep = null);
+
+[JsonConverter(typeof(LearnAuditStatusJsonConverter))]
+public enum LearnAuditStatus
+{
+    Redundant,
+    Outdated,
+    Conflicting,
+}
+
+public sealed record LearnAuditEntry(string Skill, LearnAuditStatus Status, string Reason);
+
+public sealed record LearnRecommendationEntry(string Slug, double Score, string Reason);
+
+public sealed record LearnRecommendationResult(
+    bool Success,
+    string ProjectSummary,
+    IReadOnlyList<LearnAuditEntry> Audit,
+    IReadOnlyList<LearnRecommendationEntry> Recommendations,
+    string? GapAnalysis,
+    string? Error = null);
+
+internal sealed class LearnAuditStatusJsonConverter : JsonConverter<LearnAuditStatus>
+{
+    public override LearnAuditStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "redundant" => LearnAuditStatus.Redundant,
+            "outdated" => LearnAuditStatus.Outdated,
+            "conflicting" => LearnAuditStatus.Conflicting,
+            var value => throw new JsonException($"Unknown learning audit status: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, LearnAuditStatus value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}
