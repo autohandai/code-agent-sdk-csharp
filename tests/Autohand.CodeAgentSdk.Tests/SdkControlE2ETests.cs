@@ -183,6 +183,20 @@ public sealed class SdkControlE2ETests
         Assert.Equal(1, result.Unchanged);
     }
 
+    [Fact]
+    public async Task GeneratesSkillFromProjectLearningThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.GenerateLearnAsync(LearnGenerationScope.Project);
+
+        Assert.True(result.Success);
+        Assert.Equal("csharp-sdk-learning", result.SkillName);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

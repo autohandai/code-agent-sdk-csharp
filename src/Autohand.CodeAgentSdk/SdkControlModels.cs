@@ -262,3 +262,32 @@ internal sealed class LearnUpdateStatusJsonConverter : JsonConverter<LearnUpdate
     public override void Write(Utf8JsonWriter writer, LearnUpdateStatus value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
+
+[JsonConverter(typeof(LearnGenerationScopeJsonConverter))]
+public enum LearnGenerationScope
+{
+    Project,
+    User,
+}
+
+public sealed record LearnGenerationParams(LearnGenerationScope Scope);
+
+public sealed record LearnGenerationResult(
+    bool Success,
+    string? SkillName = null,
+    string? SkillPath = null,
+    string? Error = null);
+
+internal sealed class LearnGenerationScopeJsonConverter : JsonConverter<LearnGenerationScope>
+{
+    public override LearnGenerationScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "project" => LearnGenerationScope.Project,
+            "user" => LearnGenerationScope.User,
+            var value => throw new JsonException($"Unknown learning generation scope: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, LearnGenerationScope value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value == LearnGenerationScope.Project ? "project" : "user");
+}

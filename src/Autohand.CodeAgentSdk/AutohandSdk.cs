@@ -636,6 +636,12 @@ public sealed class AutohandSdk : IAsyncDisposable
     public Task<LearnUpdateResult> UpdateLearnAsync(CancellationToken cancellationToken = default) =>
         RequestTypedAsync<LearnUpdateResult>("autohand.learn.update", new { }, cancellationToken);
 
+    public Task<LearnGenerationResult> GenerateLearnAsync(
+        LearnGenerationScope scope,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<LearnGenerationResult>(
+            "autohand.learn.generate", new LearnGenerationParams(scope), cancellationToken);
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);
