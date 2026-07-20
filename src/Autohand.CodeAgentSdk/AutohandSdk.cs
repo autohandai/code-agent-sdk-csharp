@@ -466,6 +466,16 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.permissionAcknowledged", new { requestId }, cancellationToken);
     }
 
+    public Task<DirectoryAccessResponseResult> RespondDirectoryAccessAsync(
+        string requestId,
+        bool granted,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        return RequestTypedAsync<DirectoryAccessResponseResult>(
+            "autohand.directoryAccessResponse", new { requestId, granted }, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

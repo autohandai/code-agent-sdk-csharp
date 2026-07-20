@@ -19,6 +19,19 @@ public sealed class SdkControlE2ETests
         Assert.True(result.Success);
     }
 
+    [Fact]
+    public async Task RespondsToDirectoryAccessThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.RespondDirectoryAccessAsync("directory-1", granted: true);
+
+        Assert.True(result.Success);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {
