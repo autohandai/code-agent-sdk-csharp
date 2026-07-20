@@ -227,6 +227,9 @@ public sealed class AutohandSdk : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         RequestAsync("autohand.getMessages", new { limit, before }, cancellationToken);
 
+    public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<ResetResult>("autohand.reset", new { }, cancellationToken);
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {

@@ -127,6 +127,9 @@ public sealed class Agent : IAsyncDisposable
     public Task<JsonElement> ListGoalTemplatesAsync(CancellationToken cancellationToken = default) =>
         _sdk.ListGoalTemplatesAsync(cancellationToken);
 
+    public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
+        _sdk.ResetAsync(cancellationToken);
+
     public Task<AutoresearchStartResult> StartAutoresearchAsync(
         AutoresearchStartParams parameters,
         CancellationToken cancellationToken = default) =>

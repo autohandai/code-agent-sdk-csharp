@@ -176,6 +176,10 @@ var configs = await agent.GetMcpServerConfigsAsync();
 See [Community Skills and MCP Discovery](./docs/skills-and-mcp.md) for the full
 typed contracts.
 
+## Session and Autonomous Control
+
+- `ResetAsync()` clears the conversation and returns the new session ID.
+
 ## Examples
 
 The `examples/` directory mirrors the TypeScript SDK example inventory:

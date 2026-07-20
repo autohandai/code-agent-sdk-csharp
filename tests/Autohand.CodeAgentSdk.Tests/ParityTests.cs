@@ -172,6 +172,20 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task ResetsConversationWithExactEmptyParameters()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.ResetAsync();
+
+        Assert.Equal("reset-session", result.SessionId);
+        Assert.Empty(transport.Call("autohand.reset").Parameters.EnumerateObject());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -358,6 +372,7 @@ public sealed class ParityTests
         {
             var json = method switch
             {
+                "autohand.reset" => """{"sessionId":"reset-session"}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",
