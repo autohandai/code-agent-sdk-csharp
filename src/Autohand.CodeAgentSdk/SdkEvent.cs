@@ -70,6 +70,13 @@ public sealed record AutoModeCompleteEvent(
 public sealed record AutoModeErrorEvent(string? SessionId, string? Error, JsonElement Raw)
     : SdkEvent("automode_error", Raw);
 
+public sealed record HookPreToolEvent(
+    string? ToolId,
+    string? ToolName,
+    IReadOnlyDictionary<string, JsonElement> Args,
+    JsonElement Raw)
+    : SdkEvent("hook_pre_tool", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -136,6 +143,11 @@ internal static class SdkEventParser
                 GetString(raw, "sessionId"),
                 GetString(raw, "error"),
                 raw),
+            "hook_pre_tool" => new HookPreToolEvent(
+                GetString(raw, "toolId"),
+                GetString(raw, "toolName"),
+                GetObjectDictionary(raw, "args"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -161,6 +173,7 @@ internal static class SdkEventParser
             "autohand.automode.iteration" => "automode_iteration",
             "autohand.automode.complete" => "automode_complete",
             "autohand.automode.error" => "automode_error",
+            "autohand.hook.preTool" => "hook_pre_tool",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
@@ -234,6 +247,20 @@ internal static class SdkEventParser
             .Where(item => item.ValueKind == JsonValueKind.String)
             .Select(item => item.GetString()!)
             .ToArray();
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> GetObjectDictionary(
+        JsonElement element,
+        string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(property, out var value) ||
+            value.ValueKind != JsonValueKind.Object)
+        {
+            return new Dictionary<string, JsonElement>();
+        }
+
+        return value.EnumerateObject().ToDictionary(item => item.Name, item => item.Value.Clone());
     }
 
     private static double? GetDouble(JsonElement element, string property)

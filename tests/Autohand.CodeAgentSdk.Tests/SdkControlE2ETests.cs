@@ -277,6 +277,23 @@ public sealed class SdkControlE2ETests
         Assert.Equal("Iteration failed", value.Error);
     }
 
+    [Fact]
+    public async Task StreamsTypedPreToolHookEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<HookPreToolEvent>(
+            sdk,
+            "autohand.hook.preTool",
+            new { toolId = "tool-call-1", toolName = "read_file", args = new { path = "README.md" } });
+
+        Assert.Equal("read_file", value.ToolName);
+        Assert.Equal("README.md", value.Args["path"].GetString());
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,
