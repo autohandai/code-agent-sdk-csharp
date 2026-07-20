@@ -347,6 +347,23 @@ public sealed class SdkControlE2ETests
         Assert.Equal(250, value.Duration);
     }
 
+    [Fact]
+    public async Task StreamsTypedMcpInvocationRequestsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<McpInvocationRequestEvent>(
+            sdk,
+            "autohand.mcp.invokeRequest",
+            new { requestId = "mcp-invoke-1", toolName = "vscode__github__search", args = new { query = "sdk" } });
+
+        Assert.Equal("mcp-invoke-1", value.RequestId);
+        Assert.Equal("sdk", value.Args["query"].GetString());
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,

@@ -106,6 +106,13 @@ public sealed record HookPostResponseEvent(
     JsonElement Raw)
     : SdkEvent("hook_post_response", Raw);
 
+public sealed record McpInvocationRequestEvent(
+    string? RequestId,
+    string? ToolName,
+    IReadOnlyDictionary<string, JsonElement> Args,
+    JsonElement Raw)
+    : SdkEvent("mcp_invocation_request", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -194,6 +201,11 @@ internal static class SdkEventParser
                 GetInt(raw, "toolCallsCount"),
                 GetLong(raw, "duration"),
                 raw),
+            "mcp_invocation_request" => new McpInvocationRequestEvent(
+                GetString(raw, "requestId"),
+                GetString(raw, "toolName"),
+                GetObjectDictionary(raw, "args"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -223,6 +235,7 @@ internal static class SdkEventParser
             "autohand.hook.postTool" => "hook_post_tool",
             "autohand.hook.prePrompt" => "hook_pre_prompt",
             "autohand.hook.postResponse" => "hook_post_response",
+            "autohand.mcp.invokeRequest" => "mcp_invocation_request",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
