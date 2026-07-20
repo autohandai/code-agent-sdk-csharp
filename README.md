@@ -183,6 +183,7 @@ typed contracts.
 - `AttachBrowserHandoffAsync()` consumes a handoff token and attaches its session.
 - `AttachLatestBrowserHandoffAsync()` attaches the newest unexpired handoff.
 - `StartAutoModeAsync()` starts a typed autonomous run and returns on acceptance.
+- `GetAutoModeStatusAsync()` reports runtime flags and typed persisted state.
 
 ## Examples
 

@@ -273,6 +273,24 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task GetsTypedAutoModeStatusWithExactEmptyParameters()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.GetAutoModeStatusAsync();
+
+        Assert.True(result.Active);
+        Assert.False(result.Paused);
+        Assert.Equal(AutoModeSessionStatus.Running, result.State?.Status);
+        Assert.Equal(4, result.State?.CurrentIteration);
+        Assert.Equal("checkpoint-1", result.State?.LastCheckpoint?.Commit);
+        Assert.Empty(transport.Call("autohand.automode.status").Parameters.EnumerateObject());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -468,6 +486,8 @@ public sealed class ParityTests
                     """{"success":true,"sessionId":"latest-session","workspaceRoot":"/workspace","messageCount":5}""",
                 "autohand.automode.start" =>
                     """{"success":true,"sessionId":"automode-session"}""",
+                "autohand.automode.status" =>
+                    """{"active":true,"paused":false,"state":{"sessionId":"automode-session","status":"running","currentIteration":4,"maxIterations":8,"filesCreated":2,"filesModified":7,"branch":"automode/session","lastCheckpoint":{"commit":"checkpoint-1","message":"iteration 3","timestamp":"2026-07-20T00:03:00.000Z"}}}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",
