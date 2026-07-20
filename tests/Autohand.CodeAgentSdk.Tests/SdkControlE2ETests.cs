@@ -364,6 +364,24 @@ public sealed class SdkControlE2ETests
         Assert.Equal("sdk", value.Args["query"].GetString());
     }
 
+    [Fact]
+    public async Task StreamsTypedMcpToolsChangedEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<McpToolsChangedEvent>(
+            sdk,
+            "autohand.mcp.toolsChanged",
+            new { tools = new[] { new { name = "vscode__github__search", description = "Search issues", serverName = "github" } } });
+
+        var tool = Assert.Single(value.Tools);
+        Assert.Equal("vscode__github__search", tool.Name);
+        Assert.Equal("github", tool.ServerName);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,

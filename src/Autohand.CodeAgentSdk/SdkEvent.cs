@@ -113,6 +113,11 @@ public sealed record McpInvocationRequestEvent(
     JsonElement Raw)
     : SdkEvent("mcp_invocation_request", Raw);
 
+public sealed record McpToolsChangedEvent(
+    IReadOnlyList<McpToolSummary> Tools,
+    JsonElement Raw)
+    : SdkEvent("mcp_tools_changed", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -206,6 +211,7 @@ internal static class SdkEventParser
                 GetString(raw, "toolName"),
                 GetObjectDictionary(raw, "args"),
                 raw),
+            "mcp_tools_changed" => new McpToolsChangedEvent(GetMcpTools(raw), raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -236,6 +242,7 @@ internal static class SdkEventParser
             "autohand.hook.prePrompt" => "hook_pre_prompt",
             "autohand.hook.postResponse" => "hook_post_response",
             "autohand.mcp.invokeRequest" => "mcp_invocation_request",
+            "autohand.mcp.toolsChanged" => "mcp_tools_changed",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
@@ -332,6 +339,30 @@ internal static class SdkEventParser
             "unavailable" => TokenUsageStatus.Unavailable,
             _ => null,
         };
+
+    private static IReadOnlyList<McpToolSummary> GetMcpTools(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty("tools", out var tools) ||
+            tools.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var result = new List<McpToolSummary>();
+        foreach (var tool in tools.EnumerateArray())
+        {
+            var name = GetString(tool, "name");
+            var description = GetString(tool, "description");
+            var serverName = GetString(tool, "serverName");
+            if (name is not null && description is not null && serverName is not null)
+            {
+                result.Add(new McpToolSummary(name, description, serverName));
+            }
+        }
+
+        return result;
+    }
 
     private static double? GetDouble(JsonElement element, string property)
     {
