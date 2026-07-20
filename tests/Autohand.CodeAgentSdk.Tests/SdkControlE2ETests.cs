@@ -197,6 +197,22 @@ public sealed class SdkControlE2ETests
         Assert.Equal("csharp-sdk-learning", result.SkillName);
     }
 
+    [Fact]
+    public async Task GetsTypedToolsRegistryThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.GetToolsRegistryAsync();
+
+        var tool = Assert.Single(result.Tools);
+        Assert.Equal(ToolRegistrySource.Builtin, tool.Source);
+        Assert.Equal(ToolRegistryScope.Project, tool.Scope);
+        Assert.Equal("Invalid schema", Assert.Single(result.Diagnostics).Reason);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

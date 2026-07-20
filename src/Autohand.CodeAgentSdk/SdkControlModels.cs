@@ -291,3 +291,68 @@ internal sealed class LearnGenerationScopeJsonConverter : JsonConverter<LearnGen
     public override void Write(Utf8JsonWriter writer, LearnGenerationScope value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value == LearnGenerationScope.Project ? "project" : "user");
 }
+
+[JsonConverter(typeof(ToolRegistrySourceJsonConverter))]
+public enum ToolRegistrySource
+{
+    Builtin,
+    Meta,
+    Extension,
+}
+
+[JsonConverter(typeof(ToolRegistryScopeJsonConverter))]
+public enum ToolRegistryScope
+{
+    User,
+    Project,
+}
+
+public sealed record ToolRegistryEntry(
+    string Name,
+    string Description,
+    bool? RequiresApproval,
+    string? ApprovalMessage,
+    ToolRegistrySource Source,
+    ToolRegistryScope? Scope,
+    bool? Disabled,
+    string? CreatedAt,
+    int? SchemaVersion,
+    string? HandlerPreview,
+    string? ReuseHint,
+    string? ExtensionId,
+    string? ExtensionVersion);
+
+public sealed record ToolRegistryDiagnostic(string File, string Reason);
+
+public sealed record ToolsRegistryResult(
+    IReadOnlyList<ToolRegistryEntry> Tools,
+    IReadOnlyList<ToolRegistryDiagnostic> Diagnostics);
+
+internal sealed class ToolRegistrySourceJsonConverter : JsonConverter<ToolRegistrySource>
+{
+    public override ToolRegistrySource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "builtin" => ToolRegistrySource.Builtin,
+            "meta" => ToolRegistrySource.Meta,
+            "extension" => ToolRegistrySource.Extension,
+            var value => throw new JsonException($"Unknown tool registry source: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, ToolRegistrySource value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}
+
+internal sealed class ToolRegistryScopeJsonConverter : JsonConverter<ToolRegistryScope>
+{
+    public override ToolRegistryScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "user" => ToolRegistryScope.User,
+            "project" => ToolRegistryScope.Project,
+            var value => throw new JsonException($"Unknown tool registry scope: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, ToolRegistryScope value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}
