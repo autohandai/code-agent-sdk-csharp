@@ -59,6 +59,14 @@ public sealed record AutoModeIterationEvent(
     JsonElement Raw)
     : SdkEvent("automode_iteration", Raw);
 
+public sealed record AutoModeCompleteEvent(
+    string? SessionId,
+    int? Iterations,
+    int? FilesCreated,
+    int? FilesModified,
+    JsonElement Raw)
+    : SdkEvent("automode_complete", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -115,6 +123,12 @@ internal static class SdkEventParser
                 GetStringList(raw, "actions"),
                 GetLong(raw, "tokensUsed"),
                 raw),
+            "automode_complete" => new AutoModeCompleteEvent(
+                GetString(raw, "sessionId"),
+                GetInt(raw, "iterations"),
+                GetInt(raw, "filesCreated"),
+                GetInt(raw, "filesModified"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -138,6 +152,7 @@ internal static class SdkEventParser
             "autohand.autoresearch.pause" => "autoresearch",
             "autohand.autoresearch.event" => "autoresearch",
             "autohand.automode.iteration" => "automode_iteration",
+            "autohand.automode.complete" => "automode_complete",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]

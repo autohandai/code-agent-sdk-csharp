@@ -243,6 +243,23 @@ public sealed class SdkControlE2ETests
         Assert.Equal(1200, value.TokensUsed);
     }
 
+    [Fact]
+    public async Task StreamsTypedAutoModeCompletionEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<AutoModeCompleteEvent>(
+            sdk,
+            "autohand.automode.complete",
+            new { sessionId = "auto-session", iterations = 3, filesCreated = 2, filesModified = 5 });
+
+        Assert.Equal(3, value.Iterations);
+        Assert.Equal(5, value.FilesModified);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,
