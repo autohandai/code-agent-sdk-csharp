@@ -321,6 +321,24 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task CancelsAutoModeWithExactOptionalReason()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.CancelAutoModeAsync(
+            new AutoModeCancelParams("release window closed"));
+
+        Assert.True(result.Success);
+        Assert.Null(result.Error);
+        Assert.Equal(
+            "release window closed",
+            transport.Call("autohand.automode.cancel").Parameters.GetProperty("reason").GetString());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();

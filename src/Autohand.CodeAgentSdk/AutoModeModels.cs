@@ -52,6 +52,8 @@ public sealed record AutoModeOperationResult(
     bool Success,
     string? Error = null);
 
+public sealed record AutoModeCancelParams(string? Reason = null);
+
 internal sealed class AutoModeSessionStatusJsonConverter : JsonConverter<AutoModeSessionStatus>
 {
     public override AutoModeSessionStatus Read(
