@@ -185,6 +185,7 @@ typed contracts.
 - `StartAutoModeAsync()` starts a typed autonomous run and returns on acceptance.
 - `GetAutoModeStatusAsync()` reports runtime flags and typed persisted state.
 - `PauseAutoModeAsync()` pauses the active autonomous run.
+- `ResumeAutoModeAsync()` resumes a paused autonomous run.
 
 ## Examples
 

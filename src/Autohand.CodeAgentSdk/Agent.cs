@@ -157,6 +157,10 @@ public sealed class Agent : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         _sdk.PauseAutoModeAsync(cancellationToken);
 
+    public Task<AutoModeOperationResult> ResumeAutoModeAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.ResumeAutoModeAsync(cancellationToken);
+
     public Task<AutoresearchStartResult> StartAutoresearchAsync(
         AutoresearchStartParams parameters,
         CancellationToken cancellationToken = default) =>

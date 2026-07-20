@@ -306,6 +306,21 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task ResumesAutoModeWithExactEmptyParameters()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.ResumeAutoModeAsync();
+
+        Assert.True(result.Success);
+        Assert.Null(result.Error);
+        Assert.Empty(transport.Call("autohand.automode.resume").Parameters.EnumerateObject());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
