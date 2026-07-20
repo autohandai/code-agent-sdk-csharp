@@ -48,6 +48,10 @@ public sealed record AutoModeStatusResult(
     bool Paused,
     AutoModeState? State = null);
 
+public sealed record AutoModeOperationResult(
+    bool Success,
+    string? Error = null);
+
 internal sealed class AutoModeSessionStatusJsonConverter : JsonConverter<AutoModeSessionStatus>
 {
     public override AutoModeSessionStatus Read(
