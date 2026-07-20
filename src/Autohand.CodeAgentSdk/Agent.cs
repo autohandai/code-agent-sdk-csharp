@@ -79,7 +79,7 @@ public sealed class Agent : IAsyncDisposable
         string requestId,
         string alternative,
         CancellationToken cancellationToken = default) =>
-        _sdk.PermissionResponseAsync(requestId, "deny_once", alternative, cancellationToken);
+        _sdk.PermissionResponseAsync(requestId, "alternative", alternative, cancellationToken);
 
     public Task<JsonElement> SetPlanModeAsync(
         bool enabled,
@@ -105,6 +105,11 @@ public sealed class Agent : IAsyncDisposable
 
     public Task<JsonElement> UpdateGoalAsync(
         GoalParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.UpdateGoalAsync(parameters, cancellationToken);
+
+    public Task<JsonElement> UpdateGoalAsync(
+        GoalUpdateParams parameters,
         CancellationToken cancellationToken = default) =>
         _sdk.UpdateGoalAsync(parameters, cancellationToken);
 
@@ -167,6 +172,29 @@ public sealed class Agent : IAsyncDisposable
         AutoresearchPruneParams? parameters = null,
         CancellationToken cancellationToken = default) =>
         _sdk.PruneAutoresearchAsync(parameters, cancellationToken);
+
+    public Task<GetSkillsRegistryResult> GetSkillsRegistryAsync(
+        GetSkillsRegistryParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetSkillsRegistryAsync(parameters, cancellationToken);
+
+    public Task<InstallSkillResult> InstallSkillAsync(
+        InstallSkillParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.InstallSkillAsync(parameters, cancellationToken);
+
+    public Task<McpListServersResult> ListMcpServersAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.ListMcpServersAsync(cancellationToken);
+
+    public Task<McpListToolsResult> ListMcpToolsAsync(
+        McpListToolsParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        _sdk.ListMcpToolsAsync(parameters, cancellationToken);
+
+    public Task<McpGetServerConfigsResult> GetMcpServerConfigsAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetMcpServerConfigsAsync(cancellationToken);
 
     public ValueTask DisposeAsync() => _sdk.DisposeAsync();
 

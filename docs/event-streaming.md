@@ -2,6 +2,12 @@
 
 `StreamPromptAsync()` starts a prompt and yields events as they arrive.
 
+`EventsAsync()` creates an independent observer subscription, so multiple
+observers and a prompt stream each receive the same notifications. Each
+subscription retains at most 1,024 unread events and drops the oldest item when
+that limit is reached. Stopping the SDK or losing the CLI stdout stream wakes
+blocked observers; a later restart uses a fresh event generation.
+
 ## Basic Pattern
 
 ```csharp

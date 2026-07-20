@@ -13,6 +13,7 @@ public sealed class AutohandSdk : IAsyncDisposable
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
     private readonly ITransport _transport;
+    private readonly SemaphoreSlim _promptLock = new(1, 1);
 
     public AutohandSdk(AutohandOptions? options = null)
     {
@@ -32,11 +33,27 @@ public sealed class AutohandSdk : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await _transport.StartAsync(cancellationToken).ConfigureAwait(false);
-        if (Options.Features is not null)
+        try
         {
-            await ApplyFlagSettingsAsync(new { features = Options.Features }, cancellationToken)
-                .ConfigureAwait(false);
+            await _transport.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (Options.Features is not null)
+            {
+                await ApplyFlagSettingsAsync(new { features = Options.Features }, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            try
+            {
+                await _transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Preserve the startup failure; cleanup is best effort.
+            }
+
+            throw;
         }
     }
 
@@ -63,35 +80,114 @@ public sealed class AutohandSdk : IAsyncDisposable
         PromptOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var requestTask = PromptAsync(message, options, cancellationToken);
-        var enumerator = _transport.EventsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-
+        await _promptLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            while (!requestTask.IsCompleted)
+            await using var subscription = _transport.SubscribeEvents();
+            using var promptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var eventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var enumerator = subscription.ReadAllAsync(eventCancellation.Token)
+                .GetAsyncEnumerator(eventCancellation.Token);
+            var requestTask = PromptAsync(message, options, promptCancellation.Token);
+            Task<bool>? moveTask = null;
+
+            try
             {
-                var moveTask = enumerator.MoveNextAsync().AsTask();
-                var completed = await Task.WhenAny(moveTask, requestTask).ConfigureAwait(false);
-                if (completed == requestTask)
+                while (true)
                 {
+                    moveTask ??= enumerator.MoveNextAsync().AsTask();
+                    var completed = await Task.WhenAny(moveTask, requestTask).ConfigureAwait(false);
+                    if (completed == moveTask)
+                    {
+                        if (await moveTask.ConfigureAwait(false))
+                        {
+                            var item = enumerator.Current;
+                            moveTask = null;
+                            yield return item;
+                            continue;
+                        }
+
+                        await requestTask.ConfigureAwait(false);
+                        break;
+                    }
+
+                    await requestTask.ConfigureAwait(false);
+                    eventCancellation.Cancel();
+                    if (await AwaitMoveNextAsync(moveTask, eventCancellation.Token).ConfigureAwait(false))
+                    {
+                        var item = enumerator.Current;
+                        moveTask = null;
+                        yield return item;
+                    }
+
+                    while (subscription.TryRead(out var buffered) && buffered is not null)
+                    {
+                        yield return buffered;
+                    }
+
                     break;
                 }
-
-                if (await moveTask.ConfigureAwait(false))
-                {
-                    yield return enumerator.Current;
-                }
             }
-
-            await requestTask.ConfigureAwait(false);
-            while (_transport.TryReadEvent(out var buffered) && buffered is not null)
+            finally
             {
-                yield return buffered;
+                var canceledForDisposal = !requestTask.IsCompleted || requestTask.IsCanceled;
+                eventCancellation.Cancel();
+                if (canceledForDisposal)
+                {
+                    promptCancellation.Cancel();
+                }
+
+                if (moveTask is not null)
+                {
+                    try
+                    {
+                        await moveTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (eventCancellation.IsCancellationRequested)
+                    {
+                    }
+                }
+
+                try
+                {
+                    await enumerator.DisposeAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (eventCancellation.IsCancellationRequested)
+                {
+                }
+
+                try
+                {
+                    await requestTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (canceledForDisposal)
+                {
+                }
+
+                if (canceledForDisposal && _transport.IsStarted)
+                {
+                    using var abortTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    try
+                    {
+                        await InterruptAsync(abortTimeout.Token).ConfigureAwait(false);
+                        while (subscription.TryRead(out _))
+                        {
+                        }
+                    }
+                    catch (Exception exception) when (
+                        exception is OperationCanceledException or AutohandSdkException or IOException)
+                    {
+                        await _transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                        throw new AutohandSdkException(
+                            "Failed to abort an abandoned prompt; the transport was stopped to prevent event contamination.",
+                            exception);
+                    }
+                }
             }
         }
         finally
         {
-            await enumerator.DisposeAsync().ConfigureAwait(false);
+            _promptLock.Release();
         }
     }
 
@@ -183,6 +279,11 @@ public sealed class AutohandSdk : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         RequestAsync("autohand.goal.update", parameters, cancellationToken);
 
+    public Task<JsonElement> UpdateGoalAsync(
+        GoalUpdateParams parameters,
+        CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.goal.update", parameters, cancellationToken);
+
     public Task<JsonElement> ClearGoalAsync(CancellationToken cancellationToken = default) =>
         RequestAsync("autohand.goal.clear", new { }, cancellationToken);
 
@@ -246,6 +347,38 @@ public sealed class AutohandSdk : IAsyncDisposable
             parameters ?? new AutoresearchPruneParams(),
             cancellationToken);
 
+    public Task<GetSkillsRegistryResult> GetSkillsRegistryAsync(
+        GetSkillsRegistryParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<GetSkillsRegistryResult>(
+            "autohand.getSkillsRegistry",
+            parameters ?? new GetSkillsRegistryParams(),
+            cancellationToken);
+
+    public Task<InstallSkillResult> InstallSkillAsync(
+        InstallSkillParams parameters,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<InstallSkillResult>("autohand.installSkill", parameters, cancellationToken);
+
+    public Task<McpListServersResult> ListMcpServersAsync(
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<McpListServersResult>("autohand.mcp.listServers", new { }, cancellationToken);
+
+    public Task<McpListToolsResult> ListMcpToolsAsync(
+        McpListToolsParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<McpListToolsResult>(
+            "autohand.mcp.listTools",
+            parameters ?? new McpListToolsParams(),
+            cancellationToken);
+
+    public Task<McpGetServerConfigsResult> GetMcpServerConfigsAsync(
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<McpGetServerConfigsResult>(
+            "autohand.mcp.getServerConfigs",
+            new { },
+            cancellationToken);
+
     public Task<JsonElement> PermissionResponseAsync(
         string requestId,
         string decision,
@@ -253,7 +386,11 @@ public sealed class AutohandSdk : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         RequestAsync("autohand.permissionResponse", new { requestId, decision, alternative }, cancellationToken);
 
-    public ValueTask DisposeAsync() => _transport.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _transport.DisposeAsync().ConfigureAwait(false);
+        _promptLock.Dispose();
+    }
 
     public static string FormatSlashCommand(string command, string? arguments = null)
     {
@@ -321,5 +458,19 @@ public sealed class AutohandSdk : IAsyncDisposable
         var result = await RequestAsync(method, parameters, cancellationToken).ConfigureAwait(false);
         return result.Deserialize<T>(RpcJsonOptions)
             ?? throw new AutohandSdkException($"RPC method {method} returned an empty result.");
+    }
+
+    private static async Task<bool> AwaitMoveNextAsync(
+        Task<bool> moveTask,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await moveTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 }

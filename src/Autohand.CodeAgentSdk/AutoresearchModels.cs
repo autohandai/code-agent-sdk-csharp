@@ -5,22 +5,128 @@ namespace Autohand.CodeAgentSdk;
 public sealed record GoalParams
 {
     [JsonPropertyName("objective")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Objective { get; init; }
 
     [JsonPropertyName("status")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Status { get; init; }
 
     [JsonPropertyName("token_budget")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? TokenBudget { get; init; }
 
     [JsonPropertyName("time_budget_seconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? TimeBudgetSeconds { get; init; }
 
     [JsonPropertyName("min_tokens_before_wrap_up")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? MinTokensBeforeWrapUp { get; init; }
 
     [JsonPropertyName("min_time_seconds_before_wrap_up")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? MinTimeSecondsBeforeWrapUp { get; init; }
+}
+
+public sealed record GoalUpdateParams
+{
+    [JsonPropertyName("objective")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Objective { get; init; }
+
+    [JsonPropertyName("status")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Status { get; init; }
+
+    [JsonPropertyName("token_budget")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NullableUpdate<long> TokenBudget { get; init; }
+
+    [JsonPropertyName("time_budget_seconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NullableUpdate<long> TimeBudgetSeconds { get; init; }
+
+    [JsonPropertyName("min_tokens_before_wrap_up")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NullableUpdate<long> MinTokensBeforeWrapUp { get; init; }
+
+    [JsonPropertyName("min_time_seconds_before_wrap_up")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public NullableUpdate<long> MinTimeSecondsBeforeWrapUp { get; init; }
+}
+
+[JsonConverter(typeof(NullableUpdateJsonConverterFactory))]
+public readonly record struct NullableUpdate<T>
+    where T : struct
+{
+    private NullableUpdate(NullableUpdateAction action, T value)
+    {
+        Action = action;
+        Value = value;
+    }
+
+    internal NullableUpdateAction Action { get; }
+    internal T Value { get; }
+
+    public static NullableUpdate<T> Unchanged() => default;
+
+    public static NullableUpdate<T> Clear() => new(NullableUpdateAction.Clear, default);
+
+    public static NullableUpdate<T> Set(T value) => new(NullableUpdateAction.Set, value);
+}
+
+internal enum NullableUpdateAction
+{
+    Unchanged,
+    Clear,
+    Set,
+}
+
+internal sealed class NullableUpdateJsonConverterFactory : JsonConverterFactory
+{
+    public override bool CanConvert(Type typeToConvert) =>
+        typeToConvert.IsGenericType &&
+        typeToConvert.GetGenericTypeDefinition() == typeof(NullableUpdate<>);
+
+    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    {
+        var valueType = typeToConvert.GetGenericArguments()[0];
+        return (JsonConverter)Activator.CreateInstance(
+            typeof(NullableUpdateJsonConverter<>).MakeGenericType(valueType))!;
+    }
+
+    private sealed class NullableUpdateJsonConverter<T> : JsonConverter<NullableUpdate<T>>
+        where T : struct
+    {
+        public override NullableUpdate<T> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return NullableUpdate<T>.Clear();
+            }
+
+            var value = JsonSerializer.Deserialize<T>(ref reader, options);
+            return NullableUpdate<T>.Set(value);
+        }
+
+        public override void Write(
+            Utf8JsonWriter writer,
+            NullableUpdate<T> value,
+            JsonSerializerOptions options)
+        {
+            if (value.Action is NullableUpdateAction.Unchanged or NullableUpdateAction.Clear)
+            {
+                writer.WriteNullValue();
+                return;
+            }
+
+            JsonSerializer.Serialize(writer, value.Value, options);
+        }
+    }
 }
 
 public sealed record AutoresearchSubagentOptions

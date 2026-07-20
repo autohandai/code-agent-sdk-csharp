@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - name: Restore
+        run: |
+          dotnet restore Autohand.CodeAgentSdk.sln
+          dotnet restore benchmarks/Autohand.CodeAgentSdk.StartupBenchmark/Autohand.CodeAgentSdk.StartupBenchmark.csproj
+
+      - name: Verify formatting
+        run: |
+          dotnet format Autohand.CodeAgentSdk.sln --verify-no-changes --no-restore
+          dotnet format benchmarks/Autohand.CodeAgentSdk.StartupBenchmark/Autohand.CodeAgentSdk.StartupBenchmark.csproj --verify-no-changes --no-restore
+
+      - name: Build
+        run: |
+          dotnet build Autohand.CodeAgentSdk.sln --configuration Release --no-restore
+          dotnet build benchmarks/Autohand.CodeAgentSdk.StartupBenchmark/Autohand.CodeAgentSdk.StartupBenchmark.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Autohand.CodeAgentSdk.Tests/Autohand.CodeAgentSdk.Tests.csproj --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/Autohand.CodeAgentSdk/Autohand.CodeAgentSdk.csproj --configuration Release --no-build --output artifacts
+
+      - name: Validate examples
+        run: ./scripts/validate-examples.sh
+
+      - name: Enforce startup budget
+        run: dotnet run --project benchmarks/Autohand.CodeAgentSdk.StartupBenchmark/Autohand.CodeAgentSdk.StartupBenchmark.csproj --configuration Release --no-build

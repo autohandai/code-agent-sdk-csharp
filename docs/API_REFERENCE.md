@@ -41,6 +41,9 @@ Important methods:
 - `StreamCommandAsync(command, arguments, options)`
 - `ApplyFlagSettingsAsync(settings)`
 - `PermissionResponseAsync(requestId, decision)`
+- `GetSkillsRegistryAsync(parameters)` / `InstallSkillAsync(parameters)`
+- `ListMcpServersAsync()` / `ListMcpToolsAsync(parameters)`
+- `GetMcpServerConfigsAsync()`
 
 ### Persistent goals
 
@@ -52,7 +55,9 @@ Important methods:
 - `StartQueuedGoalAsync()`
 - `ListGoalTemplatesAsync()`
 
-`GoalParams` uses the CLI's exact snake-case budget keys.
+`GoalParams` uses the CLI's exact snake-case budget keys and omits null values.
+For updates, `GoalUpdateParams` and `NullableUpdate<T>.Unchanged()`, `.Set(...)`,
+and `.Clear()` preserve the CLI's absent/value/JSON-null distinction.
 
 ### Replayable autoresearch
 
@@ -99,6 +104,7 @@ Methods:
 - `SuggestPermissionAlternativeAsync(requestId, alternative)`
 - `SetPlanModeAsync(enabled)`
 - persistent-goal and typed autoresearch methods matching `AutohandSdk`
+- typed community-skill and MCP discovery methods matching `AutohandSdk`
 
 ## `Run`
 

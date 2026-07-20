@@ -25,6 +25,7 @@ Use it when you want Autohand inside developer tools, build systems, web service
 - `await using` cleanup for subprocess lifecycle
 - `System.Text.Json` for structured output and low-level JSON-RPC escape hatches
 - Typed slash commands, persistent goals, and the complete replayable autoresearch ledger
+- Typed community skill installation and MCP server/tool/configuration discovery
 - Example parity with the TypeScript SDK examples
 
 ## Requirements
@@ -160,6 +161,21 @@ await agent.StopAutoresearchAsync();
 See [Replayable Autoresearch](./docs/autoresearch.md) for replay, rescoring,
 comparison, Pareto analysis, pinning, and retention safety.
 
+## Community Skills and MCP
+
+```csharp
+var skills = await agent.GetSkillsRegistryAsync();
+await agent.InstallSkillAsync(
+    new InstallSkillParams("csharp-quality", SkillInstallScope.Project));
+
+var servers = await agent.ListMcpServersAsync();
+var tools = await agent.ListMcpToolsAsync(new McpListToolsParams("github"));
+var configs = await agent.GetMcpServerConfigsAsync();
+```
+
+See [Community Skills and MCP Discovery](./docs/skills-and-mcp.md) for the full
+typed contracts.
+
 ## Examples
 
 The `examples/` directory mirrors the TypeScript SDK example inventory:
@@ -208,6 +224,8 @@ Live examples require an authenticated Autohand CLI and may ask for tool permiss
 - [Error Handling](./docs/error-handling.md)
 - [Examples](./docs/examples.md)
 - [Replayable Autoresearch](./docs/autoresearch.md)
+- [Community Skills and MCP Discovery](./docs/skills-and-mcp.md)
+- [Startup Performance](./docs/performance.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security](./SECURITY.md)
 
@@ -219,6 +237,7 @@ dotnet format --verify-no-changes
 dotnet build Autohand.CodeAgentSdk.sln
 dotnet test tests/Autohand.CodeAgentSdk.Tests/Autohand.CodeAgentSdk.Tests.csproj
 ./scripts/validate-examples.sh
+dotnet run --project benchmarks/Autohand.CodeAgentSdk.StartupBenchmark/Autohand.CodeAgentSdk.StartupBenchmark.csproj --configuration Release
 ```
 
 The test suite includes structured-output parsing tests and example inventory checks. The example validator builds every mirrored example project when `dotnet` is available.

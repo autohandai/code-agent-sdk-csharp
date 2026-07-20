@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Autohand.CodeAgentSdk;
 using Xunit;
 
@@ -69,7 +70,12 @@ public sealed class ParityTests
 
         await sdk.CreateGoalAsync(new GoalParams { Objective = "Finish parity", TokenBudget = 20_000 });
         await sdk.GetGoalAsync();
-        await sdk.UpdateGoalAsync(new GoalParams { Status = "paused" });
+        await sdk.UpdateGoalAsync(new GoalUpdateParams
+        {
+            Status = "paused",
+            TokenBudget = NullableUpdate<long>.Clear(),
+            MinTokensBeforeWrapUp = NullableUpdate<long>.Set(500),
+        });
         await sdk.ClearGoalAsync();
         await sdk.QueueGoalAsync(new GoalParams { Objective = "Next goal" });
         await sdk.StartQueuedGoalAsync();
@@ -122,10 +128,125 @@ public sealed class ParityTests
 
         var goal = transport.Call("autohand.goal.create").Parameters;
         Assert.Equal(20_000, goal.GetProperty("token_budget").GetInt64());
+        var update = transport.Call("autohand.goal.update").Parameters;
+        Assert.Equal(JsonValueKind.Null, update.GetProperty("token_budget").ValueKind);
+        Assert.Equal(500, update.GetProperty("min_tokens_before_wrap_up").GetInt64());
+        Assert.False(update.TryGetProperty("time_budget_seconds", out _));
         var start = transport.Call("autohand.autoresearch.start").Parameters;
         Assert.Equal("total_ms", start.GetProperty("metricName").GetString());
         Assert.True(start.GetProperty("subagents").GetProperty("ideaGeneration").GetBoolean());
         Assert.Equal("memory", start.GetProperty("secondaryObjectives")[0].GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task RoutesTypedCommunitySkillsAndMcpDiscoveryMethods()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+
+        var registry = await sdk.GetSkillsRegistryAsync(new GetSkillsRegistryParams(true));
+        var installed = await sdk.InstallSkillAsync(
+            new InstallSkillParams("csharp-quality", SkillInstallScope.Project, true));
+        var servers = await sdk.ListMcpServersAsync();
+        var tools = await sdk.ListMcpToolsAsync(new McpListToolsParams("github"));
+        var configs = await sdk.GetMcpServerConfigsAsync();
+
+        Assert.Equal("csharp-quality", registry.Skills.Single().Id);
+        Assert.Equal(".agents/skills/csharp-quality", installed.Path);
+        Assert.Equal(2, servers.Servers.Single().ToolCount);
+        Assert.Equal("github", tools.Tools.Single().ServerName);
+        Assert.Equal(McpTransportKind.Stdio, configs.Configs.Single().Transport);
+        Assert.Equal("project", transport.Call("autohand.installSkill").Parameters.GetProperty("scope").GetString());
+        Assert.True(transport.Call("autohand.getSkillsRegistry").Parameters.GetProperty("forceRefresh").GetBoolean());
+        Assert.Equal(
+            new[]
+            {
+                "autohand.getSkillsRegistry",
+                "autohand.installSkill",
+                "autohand.mcp.listServers",
+                "autohand.mcp.listTools",
+                "autohand.mcp.getServerConfigs",
+            },
+            transport.Calls.Select(call => call.Method));
+    }
+
+    [Fact]
+    public async Task PermissionAlternativeUsesTheCanonicalDecision()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        await agent.SuggestPermissionAlternativeAsync("permission-1", "Use a read-only command");
+
+        var call = transport.Call("autohand.permissionResponse").Parameters;
+        Assert.Equal("alternative", call.GetProperty("decision").GetString());
+        Assert.Equal("Use a read-only command", call.GetProperty("alternative").GetString());
+    }
+
+    [Fact]
+    public void GoalSerializationOmitsUnchangedValuesAndPreservesExplicitClear()
+    {
+        var legacy = JsonSerializer.SerializeToElement(new GoalParams { Status = "paused" });
+        var update = JsonSerializer.SerializeToElement(new GoalUpdateParams
+        {
+            Status = "paused",
+            TokenBudget = NullableUpdate<long>.Clear(),
+        });
+
+        Assert.False(legacy.TryGetProperty("token_budget", out _));
+        Assert.False(legacy.TryGetProperty("time_budget_seconds", out _));
+        Assert.Equal(JsonValueKind.Null, update.GetProperty("token_budget").ValueKind);
+        Assert.False(update.TryGetProperty("time_budget_seconds", out _));
+    }
+
+    [Fact]
+    public async Task StartupFailureStopsThePartiallyStartedTransport()
+    {
+        var transport = new FakeTransport { ThrowOnMethod = "autohand.applyFlagSettings" };
+        await using var sdk = new AutohandSdk(new AutohandOptions
+        {
+            Features = new FeatureFlagSettings { SlashGoal = true },
+        }, transport);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sdk.StartAsync());
+
+        Assert.False(transport.IsStarted);
+        Assert.Equal(1, transport.StopCalls);
+    }
+
+    [Fact]
+    public async Task ConcurrentPromptStreamsAreSerializedAndKeepTheirOwnEvents()
+    {
+        var transport = new StreamingFakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+
+        var first = CollectTextAsync(sdk.StreamPromptAsync("first"));
+        var second = CollectTextAsync(sdk.StreamPromptAsync("second"));
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(new[] { "first", "second" }, results);
+        Assert.Equal(1, transport.MaxConcurrentPrompts);
+    }
+
+    [Fact]
+    public async Task DisposingAStreamEarlyCancelsAndObservesItsPromptRequest()
+    {
+        var transport = new StreamingFakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+
+        await foreach (var _ in sdk.StreamPromptAsync("abandoned"))
+        {
+            break;
+        }
+
+        Assert.Equal(1, transport.CanceledPrompts);
+        Assert.Equal("next", await CollectTextAsync(sdk.StreamPromptAsync("next")));
+        Assert.Equal(1, transport.MaxConcurrentPrompts);
     }
 
     [Fact]
@@ -166,6 +287,20 @@ public sealed class ParityTests
     private static string ValueAfter(IReadOnlyList<string> args, string flag) =>
         args[Array.IndexOf(args.ToArray(), flag) + 1];
 
+    private static async Task<string> CollectTextAsync(IAsyncEnumerable<SdkEvent> events)
+    {
+        var text = new System.Text.StringBuilder();
+        await foreach (var item in events)
+        {
+            if (item is MessageUpdateEvent { Delta: { } delta })
+            {
+                text.Append(delta);
+            }
+        }
+
+        return text.ToString();
+    }
+
     private sealed class FakeTransport : ITransport
     {
         private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
@@ -175,6 +310,8 @@ public sealed class ParityTests
 
         public List<RpcCall> Calls { get; } = [];
         public bool IsStarted { get; private set; }
+        public string? ThrowOnMethod { get; init; }
+        public int StopCalls { get; private set; }
 
         public Task StartAsync(CancellationToken cancellationToken = default)
         {
@@ -185,6 +322,7 @@ public sealed class ParityTests
         public Task StopAsync(CancellationToken cancellationToken = default)
         {
             IsStarted = false;
+            StopCalls++;
             return Task.CompletedTask;
         }
 
@@ -193,22 +331,23 @@ public sealed class ParityTests
             object? parameters = null,
             CancellationToken cancellationToken = default)
         {
+            if (method == ThrowOnMethod)
+            {
+                throw new InvalidOperationException("Injected RPC failure.");
+            }
+
             var serialized = JsonSerializer.SerializeToElement(parameters ?? new { }, Options);
             Calls.Add(new RpcCall(method, serialized));
             return Task.FromResult(ResultFor(method));
         }
+
+        public IEventSubscription SubscribeEvents() => TestEventSubscription.Completed();
 
         public async IAsyncEnumerable<SdkEvent> EventsAsync(
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;
             yield break;
-        }
-
-        public bool TryReadEvent(out SdkEvent? item)
-        {
-            item = null;
-            return false;
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -228,6 +367,16 @@ public sealed class ParityTests
                     """{"success":true,"attemptId":"attempt-1","pinned":true}""",
                 "autohand.autoresearch.prune" =>
                     """{"success":true,"applied":false,"candidates":[],"bytesFreed":0,"remainingBytes":0}""",
+                "autohand.getSkillsRegistry" =>
+                    """{"success":true,"skills":[{"id":"csharp-quality","name":"C# Quality","description":"Review C# code","category":"development"}],"categories":[{"name":"development","count":1}]}""",
+                "autohand.installSkill" =>
+                    """{"success":true,"skillName":"csharp-quality","path":".agents/skills/csharp-quality"}""",
+                "autohand.mcp.listServers" =>
+                    """{"servers":[{"name":"github","status":"connected","toolCount":2}]}""",
+                "autohand.mcp.listTools" =>
+                    """{"tools":[{"name":"get_issue","description":"Get an issue","serverName":"github"}]}""",
+                "autohand.mcp.getServerConfigs" =>
+                    """{"configs":[{"name":"github","transport":"stdio","command":"github-mcp","args":["serve"],"autoConnect":true}]}""",
                 _ => """{"success":true}""",
             };
             return JsonDocument.Parse(json).RootElement.Clone();
@@ -235,4 +384,151 @@ public sealed class ParityTests
     }
 
     private sealed record RpcCall(string Method, JsonElement Parameters);
+
+    private sealed class StreamingFakeTransport : ITransport
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, TestEventSubscription>
+            _subscribers = new();
+        private int _activePrompts;
+        private int _canceledPrompts;
+        private int _maxConcurrentPrompts;
+        private long _nextSubscriberId;
+
+        public bool IsStarted { get; private set; }
+        public int MaxConcurrentPrompts => Volatile.Read(ref _maxConcurrentPrompts);
+        public int CanceledPrompts => Volatile.Read(ref _canceledPrompts);
+
+        public Task StartAsync(CancellationToken cancellationToken = default)
+        {
+            IsStarted = true;
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken = default)
+        {
+            IsStarted = false;
+            foreach (var (_, subscriber) in _subscribers)
+            {
+                subscriber.Complete();
+            }
+
+            _subscribers.Clear();
+            return Task.CompletedTask;
+        }
+
+        public async Task<JsonElement> RequestAsync(
+            string method,
+            object? parameters = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (method != "autohand.prompt")
+            {
+                return JsonDocument.Parse("""{"success":true}""").RootElement.Clone();
+            }
+
+            var active = Interlocked.Increment(ref _activePrompts);
+            UpdateMaximum(active);
+            try
+            {
+                var payload = JsonSerializer.SerializeToElement(parameters);
+                var message = payload.GetProperty("message").GetString()!;
+                foreach (var (_, subscriber) in _subscribers)
+                {
+                    subscriber.TryWrite(new MessageUpdateEvent(message, default));
+                }
+
+                await Task.Delay(25, cancellationToken);
+                return JsonDocument.Parse("""{"success":true}""").RootElement.Clone();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                Interlocked.Increment(ref _canceledPrompts);
+                throw;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activePrompts);
+            }
+        }
+
+        public IEventSubscription SubscribeEvents()
+        {
+            var id = Interlocked.Increment(ref _nextSubscriberId);
+            var subscription = new TestEventSubscription(
+                () => _subscribers.TryRemove(id, out _));
+            _subscribers[id] = subscription;
+            return subscription;
+        }
+
+        public async IAsyncEnumerable<SdkEvent> EventsAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await using var subscription = SubscribeEvents();
+            await foreach (var item in subscription.ReadAllAsync(cancellationToken))
+            {
+                yield return item;
+            }
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private void UpdateMaximum(int value)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref _maxConcurrentPrompts);
+                if (value <= current || Interlocked.CompareExchange(ref _maxConcurrentPrompts, value, current) == current)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private sealed class TestEventSubscription : IEventSubscription
+    {
+        private readonly Channel<SdkEvent> _events = Channel.CreateUnbounded<SdkEvent>();
+        private readonly Action _onDispose;
+        private int _disposed;
+
+        public TestEventSubscription(Action onDispose)
+        {
+            _onDispose = onDispose;
+        }
+
+        public int BufferedCount => _events.Reader.Count;
+
+        public static TestEventSubscription Completed()
+        {
+            var subscription = new TestEventSubscription(static () => { });
+            subscription.Complete();
+            return subscription;
+        }
+
+        public async IAsyncEnumerable<SdkEvent> ReadAllAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (var item in _events.Reader.ReadAllAsync(cancellationToken))
+            {
+                yield return item;
+            }
+        }
+
+        public bool TryRead(out SdkEvent? item) => _events.Reader.TryRead(out item);
+
+        public ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                _onDispose();
+                Complete();
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
+        public bool TryWrite(SdkEvent item) => _events.Writer.TryWrite(item);
+
+        public void Complete() => _events.Writer.TryComplete();
+    }
 }
