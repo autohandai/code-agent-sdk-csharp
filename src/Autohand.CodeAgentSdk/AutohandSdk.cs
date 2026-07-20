@@ -238,6 +238,14 @@ public sealed class AutohandSdk : IAsyncDisposable
             parameters ?? new BrowserHandoffCreateParams(),
             cancellationToken);
 
+    public Task<BrowserHandoffAttachResult> AttachBrowserHandoffAsync(
+        BrowserHandoffAttachParams parameters,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<BrowserHandoffAttachResult>(
+            "autohand.browserHandoff.attach",
+            parameters,
+            cancellationToken);
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {

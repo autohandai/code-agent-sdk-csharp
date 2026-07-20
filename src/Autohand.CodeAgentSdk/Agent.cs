@@ -135,6 +135,11 @@ public sealed class Agent : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         _sdk.CreateBrowserHandoffAsync(parameters, cancellationToken);
 
+    public Task<BrowserHandoffAttachResult> AttachBrowserHandoffAsync(
+        BrowserHandoffAttachParams parameters,
+        CancellationToken cancellationToken = default) =>
+        _sdk.AttachBrowserHandoffAsync(parameters, cancellationToken);
+
     public Task<AutoresearchStartResult> StartAutoresearchAsync(
         AutoresearchStartParams parameters,
         CancellationToken cancellationToken = default) =>

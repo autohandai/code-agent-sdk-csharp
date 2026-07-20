@@ -207,6 +207,25 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task AttachesBrowserHandoffWithExactToken()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.AttachBrowserHandoffAsync(
+            new BrowserHandoffAttachParams("handoff-token"));
+
+        Assert.True(result.Success);
+        Assert.Equal("browser-session", result.SessionId);
+        Assert.Equal(3, result.MessageCount);
+        Assert.Equal(
+            "handoff-token",
+            transport.Call("autohand.browserHandoff.attach").Parameters.GetProperty("token").GetString());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -396,6 +415,8 @@ public sealed class ParityTests
                 "autohand.reset" => """{"sessionId":"reset-session"}""",
                 "autohand.browserHandoff.create" =>
                     """{"token":"handoff-token","sessionId":"browser-session","workspaceRoot":"/workspace","createdAt":"2026-07-20T00:00:00.000Z","expiresAt":"2026-07-20T00:10:00.000Z","url":"https://example.test/handoff"}""",
+                "autohand.browserHandoff.attach" =>
+                    """{"success":true,"sessionId":"browser-session","workspaceRoot":"/workspace","messageCount":3}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",

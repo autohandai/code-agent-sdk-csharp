@@ -14,3 +14,11 @@ public sealed record BrowserHandoffCreateResult(
     string CreatedAt,
     string ExpiresAt,
     string Url);
+
+public sealed record BrowserHandoffAttachParams(string Token);
+
+public sealed record BrowserHandoffAttachResult(
+    bool Success,
+    string? SessionId = null,
+    string? WorkspaceRoot = null,
+    int? MessageCount = null);
