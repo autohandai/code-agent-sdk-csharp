@@ -77,6 +77,15 @@ public sealed record HookPreToolEvent(
     JsonElement Raw)
     : SdkEvent("hook_pre_tool", Raw);
 
+public sealed record HookPostToolEvent(
+    string? ToolId,
+    string? ToolName,
+    bool? Success,
+    long? Duration,
+    string? Output,
+    JsonElement Raw)
+    : SdkEvent("hook_post_tool", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -148,6 +157,13 @@ internal static class SdkEventParser
                 GetString(raw, "toolName"),
                 GetObjectDictionary(raw, "args"),
                 raw),
+            "hook_post_tool" => new HookPostToolEvent(
+                GetString(raw, "toolId"),
+                GetString(raw, "toolName"),
+                GetBool(raw, "success"),
+                GetLong(raw, "duration"),
+                GetString(raw, "output"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -174,6 +190,7 @@ internal static class SdkEventParser
             "autohand.automode.complete" => "automode_complete",
             "autohand.automode.error" => "automode_error",
             "autohand.hook.preTool" => "hook_pre_tool",
+            "autohand.hook.postTool" => "hook_post_tool",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]

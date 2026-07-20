@@ -294,6 +294,24 @@ public sealed class SdkControlE2ETests
         Assert.Equal("README.md", value.Args["path"].GetString());
     }
 
+    [Fact]
+    public async Task StreamsTypedPostToolHookEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<HookPostToolEvent>(
+            sdk,
+            "autohand.hook.postTool",
+            new { toolId = "tool-call-1", toolName = "read_file", success = true, duration = 18, output = "contents" });
+
+        Assert.True(value.Success);
+        Assert.Equal(18, value.Duration);
+        Assert.Equal("contents", value.Output);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,
