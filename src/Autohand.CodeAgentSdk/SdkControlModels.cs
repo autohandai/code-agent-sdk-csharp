@@ -90,3 +90,69 @@ internal sealed class SessionHistoryStatusJsonConverter : JsonConverter<SessionH
     public override void Write(Utf8JsonWriter writer, SessionHistoryStatus value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
+
+[JsonConverter(typeof(SessionMessageRoleJsonConverter))]
+public enum SessionMessageRole
+{
+    User,
+    Assistant,
+    System,
+    Tool,
+}
+
+public sealed record SessionToolCall(
+    string Id,
+    string Name,
+    IReadOnlyDictionary<string, JsonElement> Args);
+
+public sealed record SessionMessage(
+    string Id,
+    SessionMessageRole Role,
+    string Content,
+    string Timestamp,
+    IReadOnlyList<SessionToolCall>? ToolCalls = null);
+
+public abstract record SessionDetailsResult(bool Success);
+
+public sealed record SessionDetailsSuccess(
+    string SessionId,
+    string ProjectName,
+    string Model,
+    int MessageCount,
+    string Status,
+    string CreatedAt,
+    string LastActiveAt,
+    string? Summary,
+    IReadOnlyList<SessionMessage> Messages,
+    string WorkspaceRoot) : SessionDetailsResult(true);
+
+public sealed record SessionDetailsFailure(string Error) : SessionDetailsResult(false);
+
+internal sealed record SessionDetailsPayload(
+    bool Success,
+    string? SessionId,
+    string? ProjectName,
+    string? Model,
+    int MessageCount,
+    string? Status,
+    string? CreatedAt,
+    string? LastActiveAt,
+    string? Summary,
+    IReadOnlyList<SessionMessage>? Messages,
+    string? WorkspaceRoot);
+
+internal sealed class SessionMessageRoleJsonConverter : JsonConverter<SessionMessageRole>
+{
+    public override SessionMessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "user" => SessionMessageRole.User,
+            "assistant" => SessionMessageRole.Assistant,
+            "system" => SessionMessageRole.System,
+            "tool" => SessionMessageRole.Tool,
+            var value => throw new JsonException($"Unknown session message role: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, SessionMessageRole value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}

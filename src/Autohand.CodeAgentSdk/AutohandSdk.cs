@@ -515,6 +515,48 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.getHistory", parameters, cancellationToken);
     }
 
+    public async Task<SessionDetailsResult> GetSessionAsync(
+        string sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        var result = await RequestAsync("autohand.getSession", new { sessionId }, cancellationToken)
+            .ConfigureAwait(false);
+        if (!result.TryGetProperty("success", out var success) || !success.GetBoolean())
+        {
+            var error = result.TryGetProperty("error", out var errorElement)
+                ? errorElement.GetString()
+                : null;
+            return new SessionDetailsFailure(
+                string.IsNullOrWhiteSpace(error) ? "Session could not be loaded." : error);
+        }
+
+        var payload = result.Deserialize<SessionDetailsPayload>(RpcJsonOptions)
+            ?? throw new AutohandSdkException("autohand.getSession returned an empty successful result.");
+        if (string.IsNullOrWhiteSpace(payload.SessionId) ||
+            string.IsNullOrWhiteSpace(payload.ProjectName) ||
+            string.IsNullOrWhiteSpace(payload.Model) ||
+            string.IsNullOrWhiteSpace(payload.Status) ||
+            string.IsNullOrWhiteSpace(payload.CreatedAt) ||
+            string.IsNullOrWhiteSpace(payload.LastActiveAt) ||
+            payload.Messages is null ||
+            string.IsNullOrWhiteSpace(payload.WorkspaceRoot))
+        {
+            throw new AutohandSdkException("autohand.getSession returned an incomplete successful result.");
+        }
+        return new SessionDetailsSuccess(
+            payload.SessionId,
+            payload.ProjectName,
+            payload.Model,
+            payload.MessageCount,
+            payload.Status,
+            payload.CreatedAt,
+            payload.LastActiveAt,
+            payload.Summary,
+            payload.Messages,
+            payload.WorkspaceRoot);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

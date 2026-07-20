@@ -76,6 +76,22 @@ public sealed class SdkControlE2ETests
         Assert.Equal(7, entry.MessageCount);
     }
 
+    [Fact]
+    public async Task GetsDiscriminatedSessionDetailsThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var loaded = Assert.IsType<SessionDetailsSuccess>(await sdk.GetSessionAsync("session-details-1"));
+        var missing = Assert.IsType<SessionDetailsFailure>(await sdk.GetSessionAsync("missing-session"));
+
+        Assert.Equal("done", Assert.Single(loaded.Messages).Content);
+        Assert.Equal(SessionMessageRole.Assistant, loaded.Messages[0].Role);
+        Assert.Equal("Session not found", missing.Error);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {
