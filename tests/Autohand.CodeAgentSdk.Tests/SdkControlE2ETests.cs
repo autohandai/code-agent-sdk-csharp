@@ -61,6 +61,21 @@ public sealed class SdkControlE2ETests
         Assert.Empty(result.Errors ?? []);
     }
 
+    [Fact]
+    public async Task GetsTypedSessionHistoryThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.GetHistoryAsync(new SessionHistoryParams(2, 25));
+
+        var entry = Assert.Single(result.Sessions);
+        Assert.Equal(SessionHistoryStatus.Completed, entry.Status);
+        Assert.Equal(7, entry.MessageCount);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

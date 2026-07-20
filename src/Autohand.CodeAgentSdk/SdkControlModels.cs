@@ -50,3 +50,43 @@ internal sealed class ChangesDecisionActionJsonConverter : JsonConverter<Changes
             _ => throw new JsonException($"Unknown changes decision action: {value}"),
         });
 }
+
+public sealed record SessionHistoryParams(int? Page = null, int? PageSize = null);
+
+[JsonConverter(typeof(SessionHistoryStatusJsonConverter))]
+public enum SessionHistoryStatus
+{
+    Active,
+    Completed,
+    Crashed,
+}
+
+public sealed record SessionHistoryEntry(
+    string SessionId,
+    string CreatedAt,
+    string LastActiveAt,
+    string ProjectName,
+    string Model,
+    int MessageCount,
+    SessionHistoryStatus Status);
+
+public sealed record SessionHistoryResult(
+    IReadOnlyList<SessionHistoryEntry> Sessions,
+    int CurrentPage,
+    int TotalPages,
+    int TotalItems);
+
+internal sealed class SessionHistoryStatusJsonConverter : JsonConverter<SessionHistoryStatus>
+{
+    public override SessionHistoryStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "active" => SessionHistoryStatus.Active,
+            "completed" => SessionHistoryStatus.Completed,
+            "crashed" => SessionHistoryStatus.Crashed,
+            var value => throw new JsonException($"Unknown session history status: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, SessionHistoryStatus value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}

@@ -501,6 +501,20 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.changesDecision", parameters, cancellationToken);
     }
 
+    public Task<SessionHistoryResult> GetHistoryAsync(
+        SessionHistoryParams? parameters = null,
+        CancellationToken cancellationToken = default)
+    {
+        parameters ??= new SessionHistoryParams();
+        if (parameters.Page is < 1 || parameters.PageSize is < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameters), "Page values must be positive.");
+        }
+
+        return RequestTypedAsync<SessionHistoryResult>(
+            "autohand.getHistory", parameters, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);
