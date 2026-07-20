@@ -167,3 +167,21 @@ public sealed record SessionAttachmentResult(
 public sealed record YoloModeParams(string Pattern, int? TimeoutSeconds = null);
 
 public sealed record YoloModeResult(bool Success, int? ExpiresIn = null);
+
+public sealed record VscodeMcpInputSchema(
+    IReadOnlyDictionary<string, object?> Properties,
+    IReadOnlyList<string>? Required = null)
+{
+    [JsonPropertyName("type")]
+    public string Type => "object";
+}
+
+public sealed record VscodeMcpTool(
+    string Name,
+    string Description,
+    string ServerName,
+    VscodeMcpInputSchema? InputSchema = null);
+
+public sealed record VscodeMcpToolsParams(IReadOnlyList<VscodeMcpTool> Tools);
+
+public sealed record VscodeMcpToolsResult(bool Success);

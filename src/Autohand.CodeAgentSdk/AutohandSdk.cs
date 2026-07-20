@@ -592,6 +592,22 @@ public sealed class AutohandSdk : IAsyncDisposable
         return RequestTypedAsync<YoloModeResult>(method, parameters, cancellationToken);
     }
 
+    public Task<VscodeMcpToolsResult> SetVscodeMcpToolsAsync(
+        VscodeMcpToolsParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(parameters.Tools);
+        if (parameters.Tools.Any(tool =>
+                string.IsNullOrWhiteSpace(tool.Name) || string.IsNullOrWhiteSpace(tool.ServerName)))
+        {
+            throw new ArgumentException("MCP tool and server names must be non-empty.", nameof(parameters));
+        }
+
+        return RequestTypedAsync<VscodeMcpToolsResult>(
+            "autohand.mcp.setVscodeTools", parameters, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

@@ -122,6 +122,23 @@ public sealed class SdkControlE2ETests
         Assert.True(disabled.Success);
     }
 
+    [Fact]
+    public async Task RegistersVscodeMcpToolsThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+        var schema = new VscodeMcpInputSchema(
+            new Dictionary<string, object?> { ["query"] = new { type = "string" } }, ["query"]);
+
+        var result = await sdk.SetVscodeMcpToolsAsync(new VscodeMcpToolsParams([
+            new VscodeMcpTool("search", "Search issues", "github", schema),
+        ]));
+
+        Assert.True(result.Success);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {
