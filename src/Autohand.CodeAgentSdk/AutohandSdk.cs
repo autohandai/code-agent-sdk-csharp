@@ -253,6 +253,14 @@ public sealed class AutohandSdk : IAsyncDisposable
             new { },
             cancellationToken);
 
+    public Task<AutoModeStartResult> StartAutoModeAsync(
+        AutoModeStartParams parameters,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<AutoModeStartResult>(
+            "autohand.automode.start",
+            parameters,
+            cancellationToken);
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {

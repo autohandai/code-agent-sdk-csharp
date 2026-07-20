@@ -242,6 +242,37 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task StartsAutoModeWithCompleteCamelCaseContract()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+        var parameters = new AutoModeStartParams("Ship the SDK")
+        {
+            MaxIterations = 8,
+            CompletionPromise = "SHIPPED",
+            UseWorktree = false,
+            CheckpointInterval = 2,
+            MaxRuntime = 45,
+            MaxCost = 4.5,
+        };
+
+        var result = await agent.StartAutoModeAsync(parameters);
+
+        Assert.True(result.Success);
+        Assert.Equal("automode-session", result.SessionId);
+        var call = transport.Call("autohand.automode.start").Parameters;
+        Assert.Equal("Ship the SDK", call.GetProperty("prompt").GetString());
+        Assert.Equal(8, call.GetProperty("maxIterations").GetInt32());
+        Assert.Equal("SHIPPED", call.GetProperty("completionPromise").GetString());
+        Assert.False(call.GetProperty("useWorktree").GetBoolean());
+        Assert.Equal(2, call.GetProperty("checkpointInterval").GetInt32());
+        Assert.Equal(45, call.GetProperty("maxRuntime").GetInt32());
+        Assert.Equal(4.5, call.GetProperty("maxCost").GetDouble());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -435,6 +466,8 @@ public sealed class ParityTests
                     """{"success":true,"sessionId":"browser-session","workspaceRoot":"/workspace","messageCount":3}""",
                 "autohand.browserHandoff.attachLatest" =>
                     """{"success":true,"sessionId":"latest-session","workspaceRoot":"/workspace","messageCount":5}""",
+                "autohand.automode.start" =>
+                    """{"success":true,"sessionId":"automode-session"}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",

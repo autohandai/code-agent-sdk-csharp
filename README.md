@@ -182,6 +182,7 @@ typed contracts.
 - `CreateBrowserHandoffAsync()` creates a typed one-time browser handoff.
 - `AttachBrowserHandoffAsync()` consumes a handoff token and attaches its session.
 - `AttachLatestBrowserHandoffAsync()` attaches the newest unexpired handoff.
+- `StartAutoModeAsync()` starts a typed autonomous run and returns on acceptance.
 
 ## Examples
 
