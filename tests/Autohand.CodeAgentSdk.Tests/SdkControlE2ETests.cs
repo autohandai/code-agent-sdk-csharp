@@ -305,10 +305,10 @@ public sealed class SdkControlE2ETests
         var value = await EmitAndReadAsync<HookPostToolEvent>(
             sdk,
             "autohand.hook.postTool",
-            new { toolId = "tool-call-1", toolName = "read_file", success = true, duration = 18, output = "contents" });
+            new { toolId = "tool-call-1", toolName = "read_file", success = true, duration = 18.5, output = "contents" });
 
         Assert.True(value.Success);
-        Assert.Equal(18, value.Duration);
+        Assert.Equal(18.5, value.Duration);
         Assert.Equal("contents", value.Output);
     }
 
@@ -340,11 +340,11 @@ public sealed class SdkControlE2ETests
         var value = await EmitAndReadAsync<HookPostResponseEvent>(
             sdk,
             "autohand.hook.postResponse",
-            new { tokensUsed = 640, tokensUsageStatus = "actual", toolCallsCount = 2, duration = 250 });
+            new { tokensUsed = 640, tokensUsageStatus = "actual", toolCallsCount = 2, duration = 250.5 });
 
         Assert.Equal(TokenUsageStatus.Actual, value.TokensUsageStatus);
         Assert.Equal(2, value.ToolCallsCount);
-        Assert.Equal(250, value.Duration);
+        Assert.Equal(250.5, value.Duration);
     }
 
     [Fact]
@@ -380,6 +380,99 @@ public sealed class SdkControlE2ETests
         var tool = Assert.Single(value.Tools);
         Assert.Equal("vscode__github__search", tool.Name);
         Assert.Equal("github", tool.ServerName);
+    }
+
+    [Fact]
+    public async Task StreamsTypedLearningProgressEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<LearnProgressEvent>(
+            sdk,
+            "autohand.learn.progress",
+            new { status = "loading-registry" });
+
+        Assert.Equal(LearnProgressStatus.LoadingRegistry, value.Status);
+    }
+
+    [Fact]
+    public async Task MapsMalformedKnownNotificationsToRawUnknownEvents()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var malformedCases = new (string Method, object Payload)[]
+        {
+            ("autohand.automode.iteration", new
+            {
+                sessionId = "auto-session", iteration = "three", actions = new[] { "edit" },
+                malformedMarker = "autohand.automode.iteration",
+            }),
+            ("autohand.automode.complete", new
+            {
+                sessionId = "auto-session", iterations = 3, filesCreated = 2,
+                malformedMarker = "autohand.automode.complete",
+            }),
+            ("autohand.automode.error", new
+            {
+                sessionId = "auto-session", error = 42,
+                malformedMarker = "autohand.automode.error",
+            }),
+            ("autohand.hook.preTool", new
+            {
+                toolId = "tool-call-1", toolName = "read_file", args = new[] { "README.md" },
+                malformedMarker = "autohand.hook.preTool",
+            }),
+            ("autohand.hook.postTool", new
+            {
+                toolId = "tool-call-1", toolName = "read_file", success = "yes", duration = 18.5,
+                malformedMarker = "autohand.hook.postTool",
+            }),
+            ("autohand.hook.prePrompt", new
+            {
+                instruction = "Review the SDK", mentionedFiles = new[] { 42 },
+                malformedMarker = "autohand.hook.prePrompt",
+            }),
+            ("autohand.hook.postResponse", new
+            {
+                tokensUsed = 640, tokensUsageStatus = "estimated", toolCallsCount = 2, duration = 250.5,
+                malformedMarker = "autohand.hook.postResponse",
+            }),
+            ("autohand.mcp.invokeRequest", new
+            {
+                requestId = "mcp-invoke-1", toolName = "vscode__github__search", args = new[] { "sdk" },
+                malformedMarker = "autohand.mcp.invokeRequest",
+            }),
+            ("autohand.mcp.toolsChanged", new
+            {
+                tools = new[] { new { name = "search", description = "Search issues" } },
+                malformedMarker = "autohand.mcp.toolsChanged",
+            }),
+            ("autohand.learn.progress", new
+            {
+                status = "unknown", malformedMarker = "autohand.learn.progress",
+            }),
+        };
+
+        foreach (var (method, payload) in malformedCases)
+        {
+            var value = await EmitAndReadAsync<UnknownEvent>(sdk, method, payload);
+            Assert.Equal(method, value.Type);
+            Assert.Equal(method, value.EventType);
+            Assert.Equal(method, value.Raw.GetProperty("malformedMarker").GetString());
+        }
+
+        var future = await EmitAndReadAsync<UnknownEvent>(
+            sdk,
+            "autohand.future.event",
+            new { meaning = "kept for forward compatibility" });
+        Assert.Equal("future.event", future.Type);
+        Assert.Equal("kept for forward compatibility", future.Raw.GetProperty("meaning").GetString());
     }
 
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
@@ -442,6 +535,8 @@ public sealed class SdkControlE2ETests
                     emit({"jsonrpc": "2.0", "id": request_id, "result": result})
 
                 def notify(method, params):
+                    params = dict(params)
+                    params.setdefault("timestamp", "2026-07-20T00:00:00Z")
                     emit({"jsonrpc": "2.0", "method": method, "params": params})
 
                 def result_for(method, params):

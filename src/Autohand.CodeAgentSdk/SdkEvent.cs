@@ -1,6 +1,15 @@
 namespace Autohand.CodeAgentSdk;
 
-public abstract record SdkEvent(string Type, JsonElement Raw);
+public abstract record SdkEvent(string Type, JsonElement Raw)
+{
+    /// <summary>The CLI-provided event timestamp, or null for legacy/malformed payloads.</summary>
+    public string? Timestamp =>
+        Raw.ValueKind == JsonValueKind.Object &&
+        Raw.TryGetProperty("timestamp", out var value) &&
+        value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+}
 
 public sealed record AgentStartEvent(JsonElement Raw) : SdkEvent("agent_start", Raw);
 
@@ -52,42 +61,42 @@ public sealed record AutoresearchEvent(
     : SdkEvent("autoresearch", Raw);
 
 public sealed record AutoModeIterationEvent(
-    string? SessionId,
-    int? Iteration,
+    string SessionId,
+    int Iteration,
     IReadOnlyList<string> Actions,
     long? TokensUsed,
     JsonElement Raw)
     : SdkEvent("automode_iteration", Raw);
 
 public sealed record AutoModeCompleteEvent(
-    string? SessionId,
-    int? Iterations,
-    int? FilesCreated,
-    int? FilesModified,
+    string SessionId,
+    int Iterations,
+    int FilesCreated,
+    int FilesModified,
     JsonElement Raw)
     : SdkEvent("automode_complete", Raw);
 
-public sealed record AutoModeErrorEvent(string? SessionId, string? Error, JsonElement Raw)
+public sealed record AutoModeErrorEvent(string SessionId, string Error, JsonElement Raw)
     : SdkEvent("automode_error", Raw);
 
 public sealed record HookPreToolEvent(
-    string? ToolId,
-    string? ToolName,
+    string ToolId,
+    string ToolName,
     IReadOnlyDictionary<string, JsonElement> Args,
     JsonElement Raw)
     : SdkEvent("hook_pre_tool", Raw);
 
 public sealed record HookPostToolEvent(
-    string? ToolId,
-    string? ToolName,
-    bool? Success,
-    long? Duration,
+    string ToolId,
+    string ToolName,
+    bool Success,
+    double Duration,
     string? Output,
     JsonElement Raw)
     : SdkEvent("hook_post_tool", Raw);
 
 public sealed record HookPrePromptEvent(
-    string? Instruction,
+    string Instruction,
     IReadOnlyList<string> MentionedFiles,
     JsonElement Raw)
     : SdkEvent("hook_pre_prompt", Raw);
@@ -99,16 +108,16 @@ public enum TokenUsageStatus
 }
 
 public sealed record HookPostResponseEvent(
-    long? TokensUsed,
+    long TokensUsed,
     TokenUsageStatus? TokensUsageStatus,
-    int? ToolCallsCount,
-    long? Duration,
+    int ToolCallsCount,
+    double Duration,
     JsonElement Raw)
     : SdkEvent("hook_post_response", Raw);
 
 public sealed record McpInvocationRequestEvent(
-    string? RequestId,
-    string? ToolName,
+    string RequestId,
+    string ToolName,
     IReadOnlyDictionary<string, JsonElement> Args,
     JsonElement Raw)
     : SdkEvent("mcp_invocation_request", Raw);
@@ -117,6 +126,18 @@ public sealed record McpToolsChangedEvent(
     IReadOnlyList<McpToolSummary> Tools,
     JsonElement Raw)
     : SdkEvent("mcp_tools_changed", Raw);
+
+public enum LearnProgressStatus
+{
+    Analyzing,
+    LoadingRegistry,
+    Evaluating,
+    Generating,
+    Updating,
+}
+
+public sealed record LearnProgressEvent(LearnProgressStatus Status, JsonElement Raw)
+    : SdkEvent("learn_progress", Raw);
 
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
@@ -127,7 +148,8 @@ internal static class SdkEventParser
         var raw = parameters.ValueKind == JsonValueKind.Undefined
             ? default
             : parameters.Clone();
-        var type = GetString(raw, "type") ?? MethodToType(method);
+        var methodType = MethodToType(method);
+        var type = IsStrictFeatureType(methodType) ? methodType : GetString(raw, "type") ?? methodType;
 
         return type switch
         {
@@ -168,50 +190,63 @@ internal static class SdkEventParser
                 GetString(raw, "attemptId"),
                 GetBool(raw, "applied"),
                 raw),
-            "automode_iteration" => new AutoModeIterationEvent(
-                GetString(raw, "sessionId"),
-                GetInt(raw, "iteration"),
+            "automode_iteration" when IsValidAutoModeIteration(raw) => new AutoModeIterationEvent(
+                GetString(raw, "sessionId")!,
+                GetInt(raw, "iteration")!.Value,
                 GetStringList(raw, "actions"),
                 GetLong(raw, "tokensUsed"),
                 raw),
-            "automode_complete" => new AutoModeCompleteEvent(
-                GetString(raw, "sessionId"),
-                GetInt(raw, "iterations"),
-                GetInt(raw, "filesCreated"),
-                GetInt(raw, "filesModified"),
+            "automode_iteration" => new UnknownEvent(method, raw),
+            "automode_complete" when IsValidAutoModeComplete(raw) => new AutoModeCompleteEvent(
+                GetString(raw, "sessionId")!,
+                GetInt(raw, "iterations")!.Value,
+                GetInt(raw, "filesCreated")!.Value,
+                GetInt(raw, "filesModified")!.Value,
                 raw),
-            "automode_error" => new AutoModeErrorEvent(
-                GetString(raw, "sessionId"),
-                GetString(raw, "error"),
+            "automode_complete" => new UnknownEvent(method, raw),
+            "automode_error" when IsValidAutoModeError(raw) => new AutoModeErrorEvent(
+                GetString(raw, "sessionId")!,
+                GetString(raw, "error")!,
                 raw),
-            "hook_pre_tool" => new HookPreToolEvent(
-                GetString(raw, "toolId"),
-                GetString(raw, "toolName"),
+            "automode_error" => new UnknownEvent(method, raw),
+            "hook_pre_tool" when IsValidHookPreTool(raw) => new HookPreToolEvent(
+                GetString(raw, "toolId")!,
+                GetString(raw, "toolName")!,
                 GetObjectDictionary(raw, "args"),
                 raw),
-            "hook_post_tool" => new HookPostToolEvent(
-                GetString(raw, "toolId"),
-                GetString(raw, "toolName"),
-                GetBool(raw, "success"),
-                GetLong(raw, "duration"),
+            "hook_pre_tool" => new UnknownEvent(method, raw),
+            "hook_post_tool" when IsValidHookPostTool(raw) => new HookPostToolEvent(
+                GetString(raw, "toolId")!,
+                GetString(raw, "toolName")!,
+                GetBool(raw, "success")!.Value,
+                GetDouble(raw, "duration")!.Value,
                 GetString(raw, "output"),
                 raw),
-            "hook_pre_prompt" => new HookPrePromptEvent(
-                GetString(raw, "instruction"),
+            "hook_post_tool" => new UnknownEvent(method, raw),
+            "hook_pre_prompt" when IsValidHookPrePrompt(raw) => new HookPrePromptEvent(
+                GetString(raw, "instruction")!,
                 GetStringList(raw, "mentionedFiles"),
                 raw),
-            "hook_post_response" => new HookPostResponseEvent(
-                GetLong(raw, "tokensUsed"),
+            "hook_pre_prompt" => new UnknownEvent(method, raw),
+            "hook_post_response" when IsValidHookPostResponse(raw) => new HookPostResponseEvent(
+                GetLong(raw, "tokensUsed")!.Value,
                 ParseTokenUsageStatus(GetString(raw, "tokensUsageStatus")),
-                GetInt(raw, "toolCallsCount"),
-                GetLong(raw, "duration"),
+                GetInt(raw, "toolCallsCount")!.Value,
+                GetDouble(raw, "duration")!.Value,
                 raw),
-            "mcp_invocation_request" => new McpInvocationRequestEvent(
-                GetString(raw, "requestId"),
-                GetString(raw, "toolName"),
+            "hook_post_response" => new UnknownEvent(method, raw),
+            "mcp_invocation_request" when IsValidMcpInvocationRequest(raw) => new McpInvocationRequestEvent(
+                GetString(raw, "requestId")!,
+                GetString(raw, "toolName")!,
                 GetObjectDictionary(raw, "args"),
                 raw),
-            "mcp_tools_changed" => new McpToolsChangedEvent(GetMcpTools(raw), raw),
+            "mcp_invocation_request" => new UnknownEvent(method, raw),
+            "mcp_tools_changed" when IsValidMcpToolsChanged(raw) => new McpToolsChangedEvent(
+                GetMcpTools(raw), raw),
+            "mcp_tools_changed" => new UnknownEvent(method, raw),
+            "learn_progress" when IsValidLearnProgress(raw) => new LearnProgressEvent(
+                ParseLearnProgressStatus(GetString(raw, "status"))!.Value, raw),
+            "learn_progress" => new UnknownEvent(method, raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -243,6 +278,7 @@ internal static class SdkEventParser
             "autohand.hook.postResponse" => "hook_post_response",
             "autohand.mcp.invokeRequest" => "mcp_invocation_request",
             "autohand.mcp.toolsChanged" => "mcp_tools_changed",
+            "autohand.learn.progress" => "learn_progress",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
@@ -257,6 +293,148 @@ internal static class SdkEventParser
             "autohand.autoresearch.pause" => "pause",
             _ => null,
         };
+
+    private static bool IsStrictFeatureType(string type) =>
+        type is
+            "automode_iteration" or
+            "automode_complete" or
+            "automode_error" or
+            "hook_pre_tool" or
+            "hook_post_tool" or
+            "hook_pre_prompt" or
+            "hook_post_response" or
+            "mcp_invocation_request" or
+            "mcp_tools_changed" or
+            "learn_progress";
+
+    private static bool IsValidAutoModeIteration(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "sessionId") &&
+        HasInt32(raw, "iteration") &&
+        HasStringArray(raw, "actions") &&
+        HasOptionalInt64(raw, "tokensUsed");
+
+    private static bool IsValidAutoModeComplete(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "sessionId") &&
+        HasInt32(raw, "iterations") &&
+        HasInt32(raw, "filesCreated") &&
+        HasInt32(raw, "filesModified");
+
+    private static bool IsValidAutoModeError(JsonElement raw) =>
+        HasTimestamp(raw) && HasString(raw, "sessionId") && HasString(raw, "error");
+
+    private static bool IsValidHookPreTool(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "toolId") &&
+        HasString(raw, "toolName") &&
+        HasObject(raw, "args");
+
+    private static bool IsValidHookPostTool(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "toolId") &&
+        HasString(raw, "toolName") &&
+        HasBool(raw, "success") &&
+        HasNumber(raw, "duration") &&
+        HasOptionalString(raw, "output");
+
+    private static bool IsValidHookPrePrompt(JsonElement raw) =>
+        HasTimestamp(raw) && HasString(raw, "instruction") && HasStringArray(raw, "mentionedFiles");
+
+    private static bool IsValidHookPostResponse(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasInt64(raw, "tokensUsed") &&
+        HasOptionalTokenUsageStatus(raw) &&
+        HasInt32(raw, "toolCallsCount") &&
+        HasNumber(raw, "duration");
+
+    private static bool IsValidMcpInvocationRequest(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "requestId") &&
+        HasString(raw, "toolName") &&
+        HasObject(raw, "args");
+
+    private static bool IsValidMcpToolsChanged(JsonElement raw)
+    {
+        if (!HasTimestamp(raw) ||
+            !raw.TryGetProperty("tools", out var tools) ||
+            tools.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        return tools.EnumerateArray().All(tool =>
+            HasString(tool, "name") &&
+            HasString(tool, "description") &&
+            HasString(tool, "serverName"));
+    }
+
+    private static bool IsValidLearnProgress(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "status") &&
+        ParseLearnProgressStatus(GetString(raw, "status")) is not null;
+
+    private static bool HasTimestamp(JsonElement raw) => HasString(raw, "timestamp");
+
+    private static bool HasString(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.String;
+
+    private static bool HasBool(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind is JsonValueKind.True or JsonValueKind.False;
+
+    private static bool HasInt32(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetInt32(out _);
+
+    private static bool HasInt64(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetInt64(out _);
+
+    private static bool HasNumber(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetDouble(out _);
+
+    private static bool HasObject(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Object;
+
+    private static bool HasOptionalString(JsonElement element, string property) =>
+        !element.TryGetProperty(property, out var value) ||
+        value.ValueKind is JsonValueKind.Null or JsonValueKind.String;
+
+    private static bool HasOptionalInt64(JsonElement element, string property) =>
+        !element.TryGetProperty(property, out var value) ||
+        value.ValueKind == JsonValueKind.Null ||
+        value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _);
+
+    private static bool HasOptionalTokenUsageStatus(JsonElement element)
+    {
+        if (!element.TryGetProperty("tokensUsageStatus", out var value) ||
+            value.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        return value.ValueKind == JsonValueKind.String &&
+            ParseTokenUsageStatus(value.GetString()) is not null;
+    }
+
+    private static bool HasStringArray(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Array &&
+        value.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String);
 
     private static string? GetString(JsonElement element, string property)
     {
@@ -289,6 +467,7 @@ internal static class SdkEventParser
     {
         return element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty(property, out var value) &&
+            value.ValueKind == JsonValueKind.Number &&
             value.TryGetInt64(out var parsed)
                 ? parsed
                 : null;
@@ -298,6 +477,7 @@ internal static class SdkEventParser
     {
         return element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty(property, out var value) &&
+            value.ValueKind == JsonValueKind.Number &&
             value.TryGetInt32(out var parsed)
                 ? parsed
                 : null;
@@ -364,10 +544,22 @@ internal static class SdkEventParser
         return result;
     }
 
+    private static LearnProgressStatus? ParseLearnProgressStatus(string? value) =>
+        value switch
+        {
+            "analyzing" => LearnProgressStatus.Analyzing,
+            "loading-registry" => LearnProgressStatus.LoadingRegistry,
+            "evaluating" => LearnProgressStatus.Evaluating,
+            "generating" => LearnProgressStatus.Generating,
+            "updating" => LearnProgressStatus.Updating,
+            _ => null,
+        };
+
     private static double? GetDouble(JsonElement element, string property)
     {
         return element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty(property, out var value) &&
+            value.ValueKind == JsonValueKind.Number &&
             value.TryGetDouble(out var parsed)
                 ? parsed
                 : null;
