@@ -230,3 +230,35 @@ internal sealed class LearnAuditStatusJsonConverter : JsonConverter<LearnAuditSt
     public override void Write(Utf8JsonWriter writer, LearnAuditStatus value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
+
+[JsonConverter(typeof(LearnUpdateStatusJsonConverter))]
+public enum LearnUpdateStatus
+{
+    Updated,
+    Unchanged,
+    Failed,
+}
+
+public sealed record LearnUpdateEntry(string Name, LearnUpdateStatus Status);
+
+public sealed record LearnUpdateResult(
+    bool Success,
+    int Updated,
+    int Unchanged,
+    IReadOnlyList<LearnUpdateEntry> Results,
+    string? Error = null);
+
+internal sealed class LearnUpdateStatusJsonConverter : JsonConverter<LearnUpdateStatus>
+{
+    public override LearnUpdateStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() switch
+        {
+            "updated" => LearnUpdateStatus.Updated,
+            "unchanged" => LearnUpdateStatus.Unchanged,
+            "failed" => LearnUpdateStatus.Failed,
+            var value => throw new JsonException($"Unknown learning update status: {value}"),
+        };
+
+    public override void Write(Utf8JsonWriter writer, LearnUpdateStatus value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToString().ToLowerInvariant());
+}
