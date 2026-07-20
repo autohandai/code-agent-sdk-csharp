@@ -86,6 +86,12 @@ public sealed record HookPostToolEvent(
     JsonElement Raw)
     : SdkEvent("hook_post_tool", Raw);
 
+public sealed record HookPrePromptEvent(
+    string? Instruction,
+    IReadOnlyList<string> MentionedFiles,
+    JsonElement Raw)
+    : SdkEvent("hook_pre_prompt", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -164,6 +170,10 @@ internal static class SdkEventParser
                 GetLong(raw, "duration"),
                 GetString(raw, "output"),
                 raw),
+            "hook_pre_prompt" => new HookPrePromptEvent(
+                GetString(raw, "instruction"),
+                GetStringList(raw, "mentionedFiles"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -191,6 +201,7 @@ internal static class SdkEventParser
             "autohand.automode.error" => "automode_error",
             "autohand.hook.preTool" => "hook_pre_tool",
             "autohand.hook.postTool" => "hook_post_tool",
+            "autohand.hook.prePrompt" => "hook_pre_prompt",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]

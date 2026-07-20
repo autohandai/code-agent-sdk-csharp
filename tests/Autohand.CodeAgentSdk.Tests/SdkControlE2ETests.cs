@@ -312,6 +312,23 @@ public sealed class SdkControlE2ETests
         Assert.Equal("contents", value.Output);
     }
 
+    [Fact]
+    public async Task StreamsTypedPrePromptHookEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<HookPrePromptEvent>(
+            sdk,
+            "autohand.hook.prePrompt",
+            new { instruction = "Review the SDK", mentionedFiles = new[] { "README.md", "project.csproj" } });
+
+        Assert.Equal("Review the SDK", value.Instruction);
+        Assert.Equal(new[] { "README.md", "project.csproj" }, value.MentionedFiles);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,
