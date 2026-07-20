@@ -187,6 +187,7 @@ typed contracts.
 - `PauseAutoModeAsync()` pauses the active autonomous run.
 - `ResumeAutoModeAsync()` resumes a paused autonomous run.
 - `CancelAutoModeAsync()` cancels the active run with an optional reason.
+- `GetAutoModeLogAsync()` returns typed iteration entries with an optional limit.
 
 ## Examples
 

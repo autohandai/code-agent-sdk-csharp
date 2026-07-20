@@ -54,6 +54,25 @@ public sealed record AutoModeOperationResult(
 
 public sealed record AutoModeCancelParams(string? Reason = null);
 
+public sealed record AutoModeGetLogParams(int? Limit = null);
+
+public sealed record AutoModeLogCheckpoint(
+    string Commit,
+    string Message);
+
+public sealed record AutoModeLogEntry(
+    int Iteration,
+    string Timestamp,
+    IReadOnlyList<string> Actions,
+    int? TokensUsed = null,
+    double? Cost = null,
+    AutoModeLogCheckpoint? Checkpoint = null);
+
+public sealed record AutoModeGetLogResult(
+    bool Success,
+    IReadOnlyList<AutoModeLogEntry> Iterations,
+    string? Error = null);
+
 internal sealed class AutoModeSessionStatusJsonConverter : JsonConverter<AutoModeSessionStatus>
 {
     public override AutoModeSessionStatus Read(

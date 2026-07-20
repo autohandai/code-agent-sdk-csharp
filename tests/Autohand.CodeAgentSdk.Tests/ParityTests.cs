@@ -339,6 +339,27 @@ public sealed class ParityTests
     }
 
     [Fact]
+    public async Task GetsTypedAutoModeIterationLogWithExactLimit()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        var agent = Agent.FromSdk(sdk);
+
+        var result = await agent.GetAutoModeLogAsync(new AutoModeGetLogParams(25));
+
+        Assert.True(result.Success);
+        var iteration = Assert.Single(result.Iterations);
+        Assert.Equal(new[] { "edit", "test" }, iteration.Actions);
+        Assert.Equal(1_200, iteration.TokensUsed);
+        Assert.Equal(0.42, iteration.Cost);
+        Assert.Equal("checkpoint-1", iteration.Checkpoint?.Commit);
+        Assert.Equal(
+            25,
+            transport.Call("autohand.automode.getLog").Parameters.GetProperty("limit").GetInt32());
+    }
+
+    [Fact]
     public async Task PermissionAlternativeUsesTheCanonicalDecision()
     {
         var transport = new FakeTransport();
@@ -536,6 +557,8 @@ public sealed class ParityTests
                     """{"success":true,"sessionId":"automode-session"}""",
                 "autohand.automode.status" =>
                     """{"active":true,"paused":false,"state":{"sessionId":"automode-session","status":"running","currentIteration":4,"maxIterations":8,"filesCreated":2,"filesModified":7,"branch":"automode/session","lastCheckpoint":{"commit":"checkpoint-1","message":"iteration 3","timestamp":"2026-07-20T00:03:00.000Z"}}}""",
+                "autohand.automode.getLog" =>
+                    """{"success":true,"iterations":[{"iteration":4,"timestamp":"2026-07-20T00:04:00.000Z","actions":["edit","test"],"tokensUsed":1200,"cost":0.42,"checkpoint":{"commit":"checkpoint-1","message":"iteration 4"}}]}""",
                 "autohand.autoresearch.status" =>
                     """{"success":true,"active":true,"statusText":"active","runsLogged":1}""",
                 "autohand.autoresearch.history" => """{"success":true,"attempts":[]}""",

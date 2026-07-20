@@ -290,6 +290,14 @@ public sealed class AutohandSdk : IAsyncDisposable
             parameters ?? new AutoModeCancelParams(),
             cancellationToken);
 
+    public Task<AutoModeGetLogResult> GetAutoModeLogAsync(
+        AutoModeGetLogParams? parameters = null,
+        CancellationToken cancellationToken = default) =>
+        RequestTypedAsync<AutoModeGetLogResult>(
+            "autohand.automode.getLog",
+            parameters ?? new AutoModeGetLogParams(),
+            cancellationToken);
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {
