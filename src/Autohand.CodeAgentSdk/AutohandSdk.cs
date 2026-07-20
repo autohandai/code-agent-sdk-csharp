@@ -557,6 +557,15 @@ public sealed class AutohandSdk : IAsyncDisposable
             payload.WorkspaceRoot);
     }
 
+    public Task<SessionAttachmentResult> AttachSessionAsync(
+        string sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        return RequestTypedAsync<SessionAttachmentResult>(
+            "autohand.session.attach", new { sessionId }, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

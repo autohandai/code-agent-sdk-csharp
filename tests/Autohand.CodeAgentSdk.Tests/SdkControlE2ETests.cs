@@ -92,6 +92,20 @@ public sealed class SdkControlE2ETests
         Assert.Equal("Session not found", missing.Error);
     }
 
+    [Fact]
+    public async Task AttachesSessionThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.AttachSessionAsync("session-attach-1");
+
+        Assert.True(result.Success);
+        Assert.Equal(9, result.MessageCount);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

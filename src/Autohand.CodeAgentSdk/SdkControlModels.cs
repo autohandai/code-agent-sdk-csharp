@@ -156,3 +156,10 @@ internal sealed class SessionMessageRoleJsonConverter : JsonConverter<SessionMes
     public override void Write(Utf8JsonWriter writer, SessionMessageRole value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
+
+public sealed record SessionAttachmentResult(
+    bool Success,
+    string? SessionId = null,
+    string? WorkspaceRoot = null,
+    int? MessageCount = null,
+    string? Error = null);
