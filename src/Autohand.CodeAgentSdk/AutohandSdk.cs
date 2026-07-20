@@ -457,6 +457,15 @@ public sealed class AutohandSdk : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         RequestAsync("autohand.permissionResponse", new { requestId, decision, alternative }, cancellationToken);
 
+    public Task<PermissionAcknowledgementResult> AcknowledgePermissionAsync(
+        string requestId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        return RequestTypedAsync<PermissionAcknowledgementResult>(
+            "autohand.permissionAcknowledged", new { requestId }, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);
