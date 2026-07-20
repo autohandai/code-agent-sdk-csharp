@@ -226,6 +226,46 @@ public sealed class SdkControlE2ETests
         Assert.True(result.Enabled);
     }
 
+    [Fact]
+    public async Task StreamsTypedAutoModeIterationEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<AutoModeIterationEvent>(
+            sdk,
+            "autohand.automode.iteration",
+            new { sessionId = "auto-session", iteration = 3, actions = new[] { "edit", "test" }, tokensUsed = 1200 });
+
+        Assert.Equal(new[] { "edit", "test" }, value.Actions);
+        Assert.Equal(1200, value.TokensUsed);
+    }
+
+    private static async Task<TEvent> EmitAndReadAsync<TEvent>(
+        AutohandSdk sdk,
+        string notificationMethod,
+        object payload)
+        where TEvent : SdkEvent
+    {
+        var read = ReadFirstEventAsync<TEvent>(sdk.EventsAsync());
+        await Task.Delay(25);
+        await sdk.RequestAsync("autohand.test.emit", new { notificationMethod, payload });
+        return await read.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private static async Task<TEvent> ReadFirstEventAsync<TEvent>(IAsyncEnumerable<SdkEvent> events)
+        where TEvent : SdkEvent
+    {
+        await foreach (var item in events)
+        {
+            if (item is TEvent typed) return typed;
+        }
+
+        throw new InvalidOperationException($"Event stream ended before {typeof(TEvent).Name} arrived.");
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

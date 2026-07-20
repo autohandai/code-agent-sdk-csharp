@@ -51,6 +51,14 @@ public sealed record AutoresearchEvent(
     JsonElement Raw)
     : SdkEvent("autoresearch", Raw);
 
+public sealed record AutoModeIterationEvent(
+    string? SessionId,
+    int? Iteration,
+    IReadOnlyList<string> Actions,
+    long? TokensUsed,
+    JsonElement Raw)
+    : SdkEvent("automode_iteration", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -101,6 +109,12 @@ internal static class SdkEventParser
                 GetString(raw, "attemptId"),
                 GetBool(raw, "applied"),
                 raw),
+            "automode_iteration" => new AutoModeIterationEvent(
+                GetString(raw, "sessionId"),
+                GetInt(raw, "iteration"),
+                GetStringList(raw, "actions"),
+                GetLong(raw, "tokensUsed"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -123,6 +137,7 @@ internal static class SdkEventParser
             "autohand.autoresearch.status" => "autoresearch",
             "autohand.autoresearch.pause" => "autoresearch",
             "autohand.autoresearch.event" => "autoresearch",
+            "autohand.automode.iteration" => "automode_iteration",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
@@ -172,6 +187,30 @@ internal static class SdkEventParser
             value.TryGetInt64(out var parsed)
                 ? parsed
                 : null;
+    }
+
+    private static int? GetInt(JsonElement element, string property)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty(property, out var value) &&
+            value.TryGetInt32(out var parsed)
+                ? parsed
+                : null;
+    }
+
+    private static IReadOnlyList<string> GetStringList(JsonElement element, string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(property, out var value) ||
+            value.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return value.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString()!)
+            .ToArray();
     }
 
     private static double? GetDouble(JsonElement element, string property)
