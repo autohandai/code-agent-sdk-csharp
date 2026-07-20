@@ -608,6 +608,25 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.mcp.setVscodeTools", parameters, cancellationToken);
     }
 
+    public Task<McpInvocationResponseResult> RespondMcpInvocationAsync(
+        McpInvocationResponseParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentException.ThrowIfNullOrWhiteSpace(parameters.RequestId);
+        if (parameters.Success && parameters.Error is not null)
+        {
+            throw new ArgumentException("A successful invocation response cannot contain an error.", nameof(parameters));
+        }
+        if (!parameters.Success && string.IsNullOrWhiteSpace(parameters.Error))
+        {
+            throw new ArgumentException("A failed invocation response requires an error.", nameof(parameters));
+        }
+
+        return RequestTypedAsync<McpInvocationResponseResult>(
+            "autohand.mcp.invokeResponse", parameters, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

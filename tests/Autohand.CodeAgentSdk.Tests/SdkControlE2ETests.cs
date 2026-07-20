@@ -139,6 +139,20 @@ public sealed class SdkControlE2ETests
         Assert.True(result.Success);
     }
 
+    [Fact]
+    public async Task RespondsToMcpInvocationThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var result = await sdk.RespondMcpInvocationAsync(
+            new McpInvocationResponseParams("mcp-request-1", true, "issue-42"));
+
+        Assert.True(result.Success);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {

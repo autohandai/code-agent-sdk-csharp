@@ -185,3 +185,11 @@ public sealed record VscodeMcpTool(
 public sealed record VscodeMcpToolsParams(IReadOnlyList<VscodeMcpTool> Tools);
 
 public sealed record VscodeMcpToolsResult(bool Success);
+
+public sealed record McpInvocationResponseParams(
+    string RequestId,
+    bool Success,
+    string? Result = null,
+    string? Error = null);
+
+public sealed record McpInvocationResponseResult(bool Success);
