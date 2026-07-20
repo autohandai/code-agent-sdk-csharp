@@ -67,6 +67,9 @@ public sealed record AutoModeCompleteEvent(
     JsonElement Raw)
     : SdkEvent("automode_complete", Raw);
 
+public sealed record AutoModeErrorEvent(string? SessionId, string? Error, JsonElement Raw)
+    : SdkEvent("automode_error", Raw);
+
 public sealed record UnknownEvent(string EventType, JsonElement Raw) : SdkEvent(EventType, Raw);
 
 internal static class SdkEventParser
@@ -129,6 +132,10 @@ internal static class SdkEventParser
                 GetInt(raw, "filesCreated"),
                 GetInt(raw, "filesModified"),
                 raw),
+            "automode_error" => new AutoModeErrorEvent(
+                GetString(raw, "sessionId"),
+                GetString(raw, "error"),
+                raw),
             _ => new UnknownEvent(type, raw),
         };
     }
@@ -153,6 +160,7 @@ internal static class SdkEventParser
             "autohand.autoresearch.event" => "autoresearch",
             "autohand.automode.iteration" => "automode_iteration",
             "autohand.automode.complete" => "automode_complete",
+            "autohand.automode.error" => "automode_error",
             "autohand.error" => "error",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]

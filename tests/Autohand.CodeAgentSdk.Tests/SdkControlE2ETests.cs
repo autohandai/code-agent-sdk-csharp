@@ -260,6 +260,23 @@ public sealed class SdkControlE2ETests
         Assert.Equal(5, value.FilesModified);
     }
 
+    [Fact]
+    public async Task StreamsTypedAutoModeErrorEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var value = await EmitAndReadAsync<AutoModeErrorEvent>(
+            sdk,
+            "autohand.automode.error",
+            new { sessionId = "auto-session-failed", error = "Iteration failed" });
+
+        Assert.Equal("auto-session-failed", value.SessionId);
+        Assert.Equal("Iteration failed", value.Error);
+    }
+
     private static async Task<TEvent> EmitAndReadAsync<TEvent>(
         AutohandSdk sdk,
         string notificationMethod,
