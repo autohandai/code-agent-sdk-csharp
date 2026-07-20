@@ -163,3 +163,7 @@ public sealed record SessionAttachmentResult(
     string? WorkspaceRoot = null,
     int? MessageCount = null,
     string? Error = null);
+
+public sealed record YoloModeParams(string Pattern, int? TimeoutSeconds = null);
+
+public sealed record YoloModeResult(bool Success, int? ExpiresIn = null);

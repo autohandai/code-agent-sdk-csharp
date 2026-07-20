@@ -566,6 +566,32 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.session.attach", new { sessionId }, cancellationToken);
     }
 
+    public Task<YoloModeResult> SetYoloModeAsync(
+        YoloModeParams parameters,
+        CancellationToken cancellationToken = default) =>
+        SetYoloModeCoreAsync("autohand.yoloSet", parameters, cancellationToken);
+
+    /// <summary>Uses the dotted compatibility alias exposed by some CLI versions.</summary>
+    public Task<YoloModeResult> SetYoloModeAliasAsync(
+        YoloModeParams parameters,
+        CancellationToken cancellationToken = default) =>
+        SetYoloModeCoreAsync("autohand.yolo.set", parameters, cancellationToken);
+
+    private Task<YoloModeResult> SetYoloModeCoreAsync(
+        string method,
+        YoloModeParams parameters,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(parameters.Pattern);
+        if (parameters.TimeoutSeconds is < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameters), "YOLO timeout must be positive.");
+        }
+
+        return RequestTypedAsync<YoloModeResult>(method, parameters, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _transport.DisposeAsync().ConfigureAwait(false);

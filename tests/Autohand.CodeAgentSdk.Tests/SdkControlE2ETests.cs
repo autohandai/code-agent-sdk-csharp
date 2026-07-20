@@ -106,6 +106,22 @@ public sealed class SdkControlE2ETests
         Assert.Equal(9, result.MessageCount);
     }
 
+    [Fact]
+    public async Task SetsTimedYoloModeAndSupportsDottedAliasThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var enabled = await sdk.SetYoloModeAsync(new YoloModeParams("*", 60));
+        var disabled = await sdk.SetYoloModeAliasAsync(new YoloModeParams(string.Empty));
+
+        Assert.True(enabled.Success);
+        Assert.Equal(60, enabled.ExpiresIn);
+        Assert.True(disabled.Success);
+    }
+
     private static AutohandSdk CreateSdk(FeatureRpcFixture fixture) =>
         new(new AutohandOptions
         {
