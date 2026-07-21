@@ -113,6 +113,13 @@ public static class ExampleSupport
                     await sdk.PermissionResponseAsync(permission.RequestId, "allow_once");
                 }
                 break;
+            case HookContextWarningEvent warning:
+                Console.WriteLine($"\n[context warning] {warning.RemainingTokens} tokens remain");
+                break;
+            case UnknownEvent unknown when unknown.EventType.StartsWith(
+                "autohand.hook.", StringComparison.Ordinal):
+                Console.WriteLine($"\n[raw hook] {unknown.EventType}: {unknown.Raw.GetRawText()}");
+                break;
             case ErrorEvent error:
                 Console.Error.WriteLine($"\n[error] {error.Message}");
                 break;
@@ -123,4 +130,3 @@ public static class ExampleSupport
 
     private sealed record Risk(string Title, string Severity, string? Mitigation);
 }
-

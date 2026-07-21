@@ -348,6 +348,93 @@ public sealed class SdkControlE2ETests
     }
 
     [Fact]
+    public async Task StreamsRemainingTypedHookEventsFromSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+
+        var file = await EmitAndReadAsync<HookFileModifiedEvent>(
+            sdk,
+            "autohand.hook.fileModified",
+            new { filePath = "src/Agent.cs", changeType = "modify", toolId = "tool-call-1" });
+        Assert.Equal("file_modified", file.Type);
+        Assert.Equal(HookFileChangeType.Modify, file.ChangeType);
+
+        var sessionError = await EmitAndReadAsync<HookSessionErrorEvent>(
+            sdk,
+            "autohand.hook.sessionError",
+            new { error = "Rate limited", code = "RATE_LIMIT", context = new { retryAfter = 60 } });
+        Assert.Equal(60, sessionError.Context?["retryAfter"].GetInt32());
+
+        var stop = await EmitAndReadAsync<HookStopEvent>(
+            sdk,
+            "autohand.hook.stop",
+            new { tokensUsed = 700, tokensUsageStatus = "unavailable", toolCallsCount = 3, duration = 300.5 });
+        Assert.Equal(TokenUsageStatus.Unavailable, stop.TokensUsageStatus);
+        Assert.Equal(300.5, stop.Duration);
+
+        var start = await EmitAndReadAsync<HookSessionStartEvent>(
+            sdk, "autohand.hook.sessionStart", new { sessionType = "resume" });
+        Assert.Equal(HookSessionType.Resume, start.SessionType);
+
+        var end = await EmitAndReadAsync<HookSessionEndEvent>(
+            sdk, "autohand.hook.sessionEnd", new { reason = "clear", duration = 450.5 });
+        Assert.Equal(HookSessionEndReason.Clear, end.Reason);
+
+        var subagent = await EmitAndReadAsync<HookSubagentStopEvent>(
+            sdk,
+            "autohand.hook.subagentStop",
+            new
+            {
+                subagentId = "sub-1",
+                subagentName = "reviewer",
+                subagentType = "code-review",
+                success = false,
+                duration = 75.5,
+                error = "Review failed",
+            });
+        Assert.Equal("Review failed", subagent.Error);
+
+        var permission = await EmitAndReadAsync<HookPermissionRequestEvent>(
+            sdk,
+            "autohand.hook.permissionRequest",
+            new { tool = "write_file", path = "README.md", command = "write README.md", args = new { content = "updated" } });
+        Assert.Equal("updated", permission.Args?["content"].GetString());
+
+        var notification = await EmitAndReadAsync<HookNotificationEvent>(
+            sdk,
+            "autohand.hook.notification",
+            new { notificationType = "warning", message = "Context is nearly full" });
+        Assert.Equal("Context is nearly full", notification.Message);
+
+        var compacted = await EmitAndReadAsync<HookContextCompactedEvent>(
+            sdk,
+            "autohand.hook.contextCompacted",
+            new { croppedCount = 4, summary = "Earlier turns summarized", usagePercent = 0.6125, reason = "threshold" });
+        Assert.Equal(0.6125, compacted.UsagePercent);
+
+        var overflow = await EmitAndReadAsync<HookContextOverflowEvent>(
+            sdk,
+            "autohand.hook.contextOverflow",
+            new { tokensBefore = 120_000, tokensAfter = 80_000, croppedCount = 6, usagePercent = 1.05 });
+        Assert.Equal(1.05, overflow.UsagePercent);
+
+        var warning = await EmitAndReadAsync<HookContextWarningEvent>(
+            sdk,
+            "autohand.hook.contextWarning",
+            new { usagePercent = 0.805, remainingTokens = 12_000 });
+        Assert.Equal(0.805, warning.UsagePercent);
+
+        var critical = await EmitAndReadAsync<HookContextCriticalEvent>(
+            sdk,
+            "autohand.hook.contextCritical",
+            new { usagePercent = 0.9575, remainingTokens = 3_000 });
+        Assert.Equal(0.9575, critical.UsagePercent);
+    }
+
+    [Fact]
     public async Task StreamsTypedMcpInvocationRequestsFromSpawnedCli()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -433,6 +520,11 @@ public sealed class SdkControlE2ETests
                 toolId = "tool-call-1", toolName = "read_file", success = "yes", duration = 18.5,
                 malformedMarker = "autohand.hook.postTool",
             }),
+            ("autohand.hook.fileModified", new
+            {
+                filePath = "src/Agent.cs", changeType = "rename", toolId = "tool-call-1",
+                malformedMarker = "autohand.hook.fileModified",
+            }),
             ("autohand.hook.prePrompt", new
             {
                 instruction = "Review the SDK", mentionedFiles = new[] { 42 },
@@ -442,6 +534,58 @@ public sealed class SdkControlE2ETests
             {
                 tokensUsed = 640, tokensUsageStatus = "estimated", toolCallsCount = 2, duration = 250.5,
                 malformedMarker = "autohand.hook.postResponse",
+            }),
+            ("autohand.hook.sessionError", new
+            {
+                error = 42, malformedMarker = "autohand.hook.sessionError",
+            }),
+            ("autohand.hook.stop", new
+            {
+                tokensUsed = 700, tokensUsageStatus = "estimated", toolCallsCount = 3, duration = 300.5,
+                malformedMarker = "autohand.hook.stop",
+            }),
+            ("autohand.hook.sessionStart", new
+            {
+                sessionType = "restart", malformedMarker = "autohand.hook.sessionStart",
+            }),
+            ("autohand.hook.sessionEnd", new
+            {
+                reason = "timeout", duration = 450.5, malformedMarker = "autohand.hook.sessionEnd",
+            }),
+            ("autohand.hook.subagentStop", new
+            {
+                subagentId = "sub-1", subagentName = "reviewer", subagentType = "code-review",
+                success = "yes", duration = 75.5, malformedMarker = "autohand.hook.subagentStop",
+            }),
+            ("autohand.hook.permissionRequest", new
+            {
+                tool = "write_file", args = new[] { "README.md" },
+                malformedMarker = "autohand.hook.permissionRequest",
+            }),
+            ("autohand.hook.notification", new
+            {
+                notificationType = "warning", message = 42,
+                malformedMarker = "autohand.hook.notification",
+            }),
+            ("autohand.hook.contextCompacted", new
+            {
+                croppedCount = -1, usagePercent = 0.6125, reason = "threshold",
+                malformedMarker = "autohand.hook.contextCompacted",
+            }),
+            ("autohand.hook.contextOverflow", new
+            {
+                tokensBefore = -1, tokensAfter = 80_000, croppedCount = 6, usagePercent = 1.05,
+                malformedMarker = "autohand.hook.contextOverflow",
+            }),
+            ("autohand.hook.contextWarning", new
+            {
+                usagePercent = 0.805, remainingTokens = -1,
+                malformedMarker = "autohand.hook.contextWarning",
+            }),
+            ("autohand.hook.contextCritical", new
+            {
+                usagePercent = -0.01, remainingTokens = 3_000,
+                malformedMarker = "autohand.hook.contextCritical",
             }),
             ("autohand.mcp.invokeRequest", new
             {

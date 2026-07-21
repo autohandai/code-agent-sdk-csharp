@@ -134,6 +134,10 @@ Common event records:
 - `AutoresearchEvent`
 - `UnknownEvent`
 
+All 16 `autohand.hook.*` notifications also map to typed event records. See
+[Event Streaming](event-streaming.md#typed-cli-hook-notifications) for the full
+mapping, raw fallback contract, and integer range rules.
+
 ## Structured JSON
 
 ```csharp

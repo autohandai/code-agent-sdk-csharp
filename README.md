@@ -21,6 +21,7 @@ Use it when you want Autohand inside developer tools, build systems, web service
 - `Agent` and `Run` for high-level application workflows
 - `AutohandSdk` for direct low-level RPC access
 - `IAsyncEnumerable<SdkEvent>` streaming for tokens, tools, permissions, and errors
+- Typed records for all 16 CLI hook notifications, with exact raw fallback for unknown or malformed payloads
 - `CancellationToken` support where long-running work can block
 - `await using` cleanup for subprocess lifecycle
 - `System.Text.Json` for structured output and low-level JSON-RPC escape hatches

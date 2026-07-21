@@ -115,6 +115,111 @@ public sealed record HookPostResponseEvent(
     JsonElement Raw)
     : SdkEvent("hook_post_response", Raw);
 
+public enum HookFileChangeType
+{
+    Create,
+    Modify,
+    Delete,
+}
+
+public sealed record HookFileModifiedEvent(
+    string FilePath,
+    HookFileChangeType ChangeType,
+    string ToolId,
+    JsonElement Raw)
+    : SdkEvent("file_modified", Raw);
+
+public sealed record HookSessionErrorEvent(
+    string Error,
+    string? Code,
+    IReadOnlyDictionary<string, JsonElement>? Context,
+    JsonElement Raw)
+    : SdkEvent("hook_session_error", Raw);
+
+public sealed record HookStopEvent(
+    long TokensUsed,
+    TokenUsageStatus? TokensUsageStatus,
+    int ToolCallsCount,
+    double Duration,
+    JsonElement Raw)
+    : SdkEvent("hook_stop", Raw);
+
+public enum HookSessionType
+{
+    Startup,
+    Resume,
+    Clear,
+}
+
+public sealed record HookSessionStartEvent(HookSessionType SessionType, JsonElement Raw)
+    : SdkEvent("hook_session_start", Raw);
+
+public enum HookSessionEndReason
+{
+    Quit,
+    Clear,
+    Exit,
+    Error,
+}
+
+public sealed record HookSessionEndEvent(
+    HookSessionEndReason Reason,
+    double Duration,
+    JsonElement Raw)
+    : SdkEvent("hook_session_end", Raw);
+
+public sealed record HookSubagentStopEvent(
+    string SubagentId,
+    string SubagentName,
+    string SubagentType,
+    bool Success,
+    double Duration,
+    string? Error,
+    JsonElement Raw)
+    : SdkEvent("hook_subagent_stop", Raw);
+
+public sealed record HookPermissionRequestEvent(
+    string Tool,
+    string? Path,
+    string? Command,
+    IReadOnlyDictionary<string, JsonElement>? Args,
+    JsonElement Raw)
+    : SdkEvent("hook_permission_request", Raw);
+
+public sealed record HookNotificationEvent(
+    string NotificationType,
+    string Message,
+    JsonElement Raw)
+    : SdkEvent("hook_notification", Raw);
+
+public sealed record HookContextCompactedEvent(
+    long CroppedCount,
+    string? Summary,
+    double UsagePercent,
+    string Reason,
+    JsonElement Raw)
+    : SdkEvent("hook_context_compacted", Raw);
+
+public sealed record HookContextOverflowEvent(
+    long TokensBefore,
+    long TokensAfter,
+    long CroppedCount,
+    double UsagePercent,
+    JsonElement Raw)
+    : SdkEvent("hook_context_overflow", Raw);
+
+public sealed record HookContextWarningEvent(
+    double UsagePercent,
+    long RemainingTokens,
+    JsonElement Raw)
+    : SdkEvent("hook_context_warning", Raw);
+
+public sealed record HookContextCriticalEvent(
+    double UsagePercent,
+    long RemainingTokens,
+    JsonElement Raw)
+    : SdkEvent("hook_context_critical", Raw);
+
 public sealed record McpInvocationRequestEvent(
     string RequestId,
     string ToolName,
@@ -223,6 +328,12 @@ internal static class SdkEventParser
                 GetString(raw, "output"),
                 raw),
             "hook_post_tool" => new UnknownEvent(method, raw),
+            "file_modified" when IsValidHookFileModified(raw) => new HookFileModifiedEvent(
+                GetString(raw, "filePath")!,
+                ParseHookFileChangeType(GetString(raw, "changeType"))!.Value,
+                GetString(raw, "toolId")!,
+                raw),
+            "file_modified" => new UnknownEvent(method, raw),
             "hook_pre_prompt" when IsValidHookPrePrompt(raw) => new HookPrePromptEvent(
                 GetString(raw, "instruction")!,
                 GetStringList(raw, "mentionedFiles"),
@@ -235,6 +346,73 @@ internal static class SdkEventParser
                 GetDouble(raw, "duration")!.Value,
                 raw),
             "hook_post_response" => new UnknownEvent(method, raw),
+            "hook_session_error" when IsValidHookSessionError(raw) => new HookSessionErrorEvent(
+                GetString(raw, "error")!,
+                GetString(raw, "code"),
+                GetOptionalObjectDictionary(raw, "context"),
+                raw),
+            "hook_session_error" => new UnknownEvent(method, raw),
+            "hook_stop" when IsValidHookStop(raw) => new HookStopEvent(
+                GetLong(raw, "tokensUsed")!.Value,
+                ParseTokenUsageStatus(GetString(raw, "tokensUsageStatus")),
+                GetInt(raw, "toolCallsCount")!.Value,
+                GetDouble(raw, "duration")!.Value,
+                raw),
+            "hook_stop" => new UnknownEvent(method, raw),
+            "hook_session_start" when IsValidHookSessionStart(raw) => new HookSessionStartEvent(
+                ParseHookSessionType(GetString(raw, "sessionType"))!.Value,
+                raw),
+            "hook_session_start" => new UnknownEvent(method, raw),
+            "hook_session_end" when IsValidHookSessionEnd(raw) => new HookSessionEndEvent(
+                ParseHookSessionEndReason(GetString(raw, "reason"))!.Value,
+                GetDouble(raw, "duration")!.Value,
+                raw),
+            "hook_session_end" => new UnknownEvent(method, raw),
+            "hook_subagent_stop" when IsValidHookSubagentStop(raw) => new HookSubagentStopEvent(
+                GetString(raw, "subagentId")!,
+                GetString(raw, "subagentName")!,
+                GetString(raw, "subagentType")!,
+                GetBool(raw, "success")!.Value,
+                GetDouble(raw, "duration")!.Value,
+                GetString(raw, "error"),
+                raw),
+            "hook_subagent_stop" => new UnknownEvent(method, raw),
+            "hook_permission_request" when IsValidHookPermissionRequest(raw) => new HookPermissionRequestEvent(
+                GetString(raw, "tool")!,
+                GetString(raw, "path"),
+                GetString(raw, "command"),
+                GetOptionalObjectDictionary(raw, "args"),
+                raw),
+            "hook_permission_request" => new UnknownEvent(method, raw),
+            "hook_notification" when IsValidHookNotification(raw) => new HookNotificationEvent(
+                GetString(raw, "notificationType")!,
+                GetString(raw, "message")!,
+                raw),
+            "hook_notification" => new UnknownEvent(method, raw),
+            "hook_context_compacted" when IsValidHookContextCompacted(raw) => new HookContextCompactedEvent(
+                GetLong(raw, "croppedCount")!.Value,
+                GetString(raw, "summary"),
+                GetDouble(raw, "usagePercent")!.Value,
+                GetString(raw, "reason")!,
+                raw),
+            "hook_context_compacted" => new UnknownEvent(method, raw),
+            "hook_context_overflow" when IsValidHookContextOverflow(raw) => new HookContextOverflowEvent(
+                GetLong(raw, "tokensBefore")!.Value,
+                GetLong(raw, "tokensAfter")!.Value,
+                GetLong(raw, "croppedCount")!.Value,
+                GetDouble(raw, "usagePercent")!.Value,
+                raw),
+            "hook_context_overflow" => new UnknownEvent(method, raw),
+            "hook_context_warning" when IsValidHookContextUsage(raw) => new HookContextWarningEvent(
+                GetDouble(raw, "usagePercent")!.Value,
+                GetLong(raw, "remainingTokens")!.Value,
+                raw),
+            "hook_context_warning" => new UnknownEvent(method, raw),
+            "hook_context_critical" when IsValidHookContextUsage(raw) => new HookContextCriticalEvent(
+                GetDouble(raw, "usagePercent")!.Value,
+                GetLong(raw, "remainingTokens")!.Value,
+                raw),
+            "hook_context_critical" => new UnknownEvent(method, raw),
             "mcp_invocation_request" when IsValidMcpInvocationRequest(raw) => new McpInvocationRequestEvent(
                 GetString(raw, "requestId")!,
                 GetString(raw, "toolName")!,
@@ -274,8 +452,20 @@ internal static class SdkEventParser
             "autohand.automode.error" => "automode_error",
             "autohand.hook.preTool" => "hook_pre_tool",
             "autohand.hook.postTool" => "hook_post_tool",
+            "autohand.hook.fileModified" => "file_modified",
             "autohand.hook.prePrompt" => "hook_pre_prompt",
             "autohand.hook.postResponse" => "hook_post_response",
+            "autohand.hook.sessionError" => "hook_session_error",
+            "autohand.hook.stop" => "hook_stop",
+            "autohand.hook.sessionStart" => "hook_session_start",
+            "autohand.hook.sessionEnd" => "hook_session_end",
+            "autohand.hook.subagentStop" => "hook_subagent_stop",
+            "autohand.hook.permissionRequest" => "hook_permission_request",
+            "autohand.hook.notification" => "hook_notification",
+            "autohand.hook.contextCompacted" => "hook_context_compacted",
+            "autohand.hook.contextOverflow" => "hook_context_overflow",
+            "autohand.hook.contextWarning" => "hook_context_warning",
+            "autohand.hook.contextCritical" => "hook_context_critical",
             "autohand.mcp.invokeRequest" => "mcp_invocation_request",
             "autohand.mcp.toolsChanged" => "mcp_tools_changed",
             "autohand.learn.progress" => "learn_progress",
@@ -301,8 +491,20 @@ internal static class SdkEventParser
             "automode_error" or
             "hook_pre_tool" or
             "hook_post_tool" or
+            "file_modified" or
             "hook_pre_prompt" or
             "hook_post_response" or
+            "hook_session_error" or
+            "hook_stop" or
+            "hook_session_start" or
+            "hook_session_end" or
+            "hook_subagent_stop" or
+            "hook_permission_request" or
+            "hook_notification" or
+            "hook_context_compacted" or
+            "hook_context_overflow" or
+            "hook_context_warning" or
+            "hook_context_critical" or
             "mcp_invocation_request" or
             "mcp_tools_changed" or
             "learn_progress";
@@ -335,8 +537,15 @@ internal static class SdkEventParser
         HasString(raw, "toolId") &&
         HasString(raw, "toolName") &&
         HasBool(raw, "success") &&
-        HasNumber(raw, "duration") &&
+        HasFiniteNumber(raw, "duration") &&
         HasOptionalString(raw, "output");
+
+    private static bool IsValidHookFileModified(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "filePath") &&
+        HasString(raw, "changeType") &&
+        ParseHookFileChangeType(GetString(raw, "changeType")) is not null &&
+        HasString(raw, "toolId");
 
     private static bool IsValidHookPrePrompt(JsonElement raw) =>
         HasTimestamp(raw) && HasString(raw, "instruction") && HasStringArray(raw, "mentionedFiles");
@@ -346,7 +555,71 @@ internal static class SdkEventParser
         HasInt64(raw, "tokensUsed") &&
         HasOptionalTokenUsageStatus(raw) &&
         HasInt32(raw, "toolCallsCount") &&
-        HasNumber(raw, "duration");
+        HasFiniteNumber(raw, "duration");
+
+    private static bool IsValidHookSessionError(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "error") &&
+        HasOptionalString(raw, "code") &&
+        HasOptionalObject(raw, "context");
+
+    private static bool IsValidHookStop(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasInt64(raw, "tokensUsed") &&
+        HasOptionalTokenUsageStatus(raw) &&
+        HasInt32(raw, "toolCallsCount") &&
+        HasFiniteNumber(raw, "duration");
+
+    private static bool IsValidHookSessionStart(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "sessionType") &&
+        ParseHookSessionType(GetString(raw, "sessionType")) is not null;
+
+    private static bool IsValidHookSessionEnd(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "reason") &&
+        ParseHookSessionEndReason(GetString(raw, "reason")) is not null &&
+        HasFiniteNumber(raw, "duration");
+
+    private static bool IsValidHookSubagentStop(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "subagentId") &&
+        HasString(raw, "subagentName") &&
+        HasString(raw, "subagentType") &&
+        HasBool(raw, "success") &&
+        HasFiniteNumber(raw, "duration") &&
+        HasOptionalString(raw, "error");
+
+    private static bool IsValidHookPermissionRequest(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "tool") &&
+        HasOptionalString(raw, "path") &&
+        HasOptionalString(raw, "command") &&
+        HasOptionalObject(raw, "args");
+
+    private static bool IsValidHookNotification(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasString(raw, "notificationType") &&
+        HasString(raw, "message");
+
+    private static bool IsValidHookContextCompacted(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasNonNegativeInt64(raw, "croppedCount") &&
+        HasOptionalString(raw, "summary") &&
+        HasNonNegativeFiniteNumber(raw, "usagePercent") &&
+        HasString(raw, "reason");
+
+    private static bool IsValidHookContextOverflow(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasNonNegativeInt64(raw, "tokensBefore") &&
+        HasNonNegativeInt64(raw, "tokensAfter") &&
+        HasNonNegativeInt64(raw, "croppedCount") &&
+        HasNonNegativeFiniteNumber(raw, "usagePercent");
+
+    private static bool IsValidHookContextUsage(JsonElement raw) =>
+        HasTimestamp(raw) &&
+        HasNonNegativeFiniteNumber(raw, "usagePercent") &&
+        HasNonNegativeInt64(raw, "remainingTokens");
 
     private static bool IsValidMcpInvocationRequest(JsonElement raw) =>
         HasTimestamp(raw) &&
@@ -398,11 +671,33 @@ internal static class SdkEventParser
         value.ValueKind == JsonValueKind.Number &&
         value.TryGetInt64(out _);
 
+    private static bool HasNonNegativeInt64(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetInt64(out var parsed) &&
+        parsed >= 0;
+
     private static bool HasNumber(JsonElement element, string property) =>
         element.ValueKind == JsonValueKind.Object &&
         element.TryGetProperty(property, out var value) &&
         value.ValueKind == JsonValueKind.Number &&
         value.TryGetDouble(out _);
+
+    private static bool HasFiniteNumber(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetDouble(out var parsed) &&
+        double.IsFinite(parsed);
+
+    private static bool HasNonNegativeFiniteNumber(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
+        value.TryGetDouble(out var parsed) &&
+        double.IsFinite(parsed) &&
+        parsed >= 0;
 
     private static bool HasObject(JsonElement element, string property) =>
         element.ValueKind == JsonValueKind.Object &&
@@ -412,6 +707,10 @@ internal static class SdkEventParser
     private static bool HasOptionalString(JsonElement element, string property) =>
         !element.TryGetProperty(property, out var value) ||
         value.ValueKind is JsonValueKind.Null or JsonValueKind.String;
+
+    private static bool HasOptionalObject(JsonElement element, string property) =>
+        !element.TryGetProperty(property, out var value) ||
+        value.ValueKind is JsonValueKind.Null or JsonValueKind.Object;
 
     private static bool HasOptionalInt64(JsonElement element, string property) =>
         !element.TryGetProperty(property, out var value) ||
@@ -511,6 +810,50 @@ internal static class SdkEventParser
 
         return value.EnumerateObject().ToDictionary(item => item.Name, item => item.Value.Clone());
     }
+
+    private static IReadOnlyDictionary<string, JsonElement>? GetOptionalObjectDictionary(
+        JsonElement element,
+        string property)
+    {
+        if (element.ValueKind != JsonValueKind.Object ||
+            !element.TryGetProperty(property, out var value) ||
+            value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.Object
+            ? value.EnumerateObject().ToDictionary(item => item.Name, item => item.Value.Clone())
+            : null;
+    }
+
+    private static HookFileChangeType? ParseHookFileChangeType(string? value) =>
+        value switch
+        {
+            "create" => HookFileChangeType.Create,
+            "modify" => HookFileChangeType.Modify,
+            "delete" => HookFileChangeType.Delete,
+            _ => null,
+        };
+
+    private static HookSessionType? ParseHookSessionType(string? value) =>
+        value switch
+        {
+            "startup" => HookSessionType.Startup,
+            "resume" => HookSessionType.Resume,
+            "clear" => HookSessionType.Clear,
+            _ => null,
+        };
+
+    private static HookSessionEndReason? ParseHookSessionEndReason(string? value) =>
+        value switch
+        {
+            "quit" => HookSessionEndReason.Quit,
+            "clear" => HookSessionEndReason.Clear,
+            "exit" => HookSessionEndReason.Exit,
+            "error" => HookSessionEndReason.Error,
+            _ => null,
+        };
 
     private static TokenUsageStatus? ParseTokenUsageStatus(string? value) =>
         value switch
