@@ -424,6 +424,8 @@ public sealed class TransportLifecycleTests
                         if message == "abandoned":
                             state["stop"].wait()
                             notify("late-from-abandoned")
+                        emit({"jsonrpc": "2.0", "method": "autohand.turnEnd", "params": {
+                            "turnId": str(request_id), "reason": "aborted" if state["stop"].is_set() else "completed"}})
                         reply(request_id, {"success": True})
                     finally:
                         state["done"].set()

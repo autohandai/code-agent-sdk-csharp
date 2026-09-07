@@ -38,12 +38,23 @@ public sealed class Agent : IAsyncDisposable
     public Run Autoresearch(string objective, PromptOptions? options = null) =>
         Command("/autoresearch", objective, options);
 
-    public IAsyncEnumerable<SdkEvent> StreamAsync(
+    public async IAsyncEnumerable<SdkEvent> StreamAsync(
         string prompt,
         PromptOptions? options = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        return Send(prompt, options).StreamAsync(cancellationToken);
+        var run = Send(prompt, options);
+        using var cancellation = cancellationToken.Register(run.Cancel);
+        var completed = false;
+        try
+        {
+            await foreach (var item in run.StreamAsync(cancellationToken).ConfigureAwait(false)) yield return item;
+            completed = true;
+        }
+        finally
+        {
+            if (!completed) await run.AbortAsync().ConfigureAwait(false);
+        }
     }
 
     public async Task<RunResult> RunAsync(
@@ -51,7 +62,9 @@ public sealed class Agent : IAsyncDisposable
         PromptOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        return await Send(prompt, options).WaitAsync(cancellationToken).ConfigureAwait(false);
+        var run = Send(prompt, options);
+        using var cancellation = cancellationToken.Register(run.Cancel);
+        return await run.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<T> RunJsonAsync<T>(
@@ -60,8 +73,8 @@ public sealed class Agent : IAsyncDisposable
         PromptOptions? promptOptions = null,
         CancellationToken cancellationToken = default)
     {
-        var run = Send(JsonOutput.WithJsonInstruction(prompt, jsonOptions), promptOptions);
-        var result = await run.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var result = await RunAsync(JsonOutput.WithJsonInstruction(prompt, jsonOptions), promptOptions, cancellationToken)
+            .ConfigureAwait(false);
         return JsonOutput.Parse<T>(result.Text, jsonOptions);
     }
 

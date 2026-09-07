@@ -26,5 +26,6 @@ Examples:
 - `23-system-prompts`: appended system instructions.
 - `24-high-level-agent`: `Agent` and `Run`.
 - `25-structured-json`: typed JSON output.
+- `28-step-control`: stop after persisted tool results, inspect steps, and continue.
 
 Live examples require an authenticated Autohand CLI.

@@ -74,6 +74,9 @@ public sealed record ImageAttachment(string Data, string MimeType);
 
 public sealed record PromptOptions
 {
+    /// <summary>Host-only predicates evaluated after persisted tool results.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<StopCondition> StopWhen { get; init; } = Array.Empty<StopCondition>();
     public JsonObject? Context { get; init; }
     public IReadOnlyList<ImageAttachment> Images { get; init; } = Array.Empty<ImageAttachment>();
     public string? ThinkingLevel { get; init; }

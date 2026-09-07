@@ -625,6 +625,9 @@ public sealed class ParityTests
         {
             if (method != "autohand.prompt")
             {
+                if (method == "autohand.abort")
+                    foreach (var (_, subscriber) in _subscribers)
+                        subscriber.TryWrite(new TurnEndEvent(null, null, null, null, default));
                 return JsonDocument.Parse("""{"success":true}""").RootElement.Clone();
             }
 
@@ -640,6 +643,8 @@ public sealed class ParityTests
                 }
 
                 await Task.Delay(25, cancellationToken);
+                foreach (var (_, subscriber) in _subscribers)
+                    subscriber.TryWrite(new TurnEndEvent(null, null, null, null, default));
                 return JsonDocument.Parse("""{"success":true}""").RootElement.Clone();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

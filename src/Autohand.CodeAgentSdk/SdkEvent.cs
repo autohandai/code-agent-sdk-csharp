@@ -13,7 +13,10 @@ public abstract record SdkEvent(string Type, JsonElement Raw)
 
 public sealed record AgentStartEvent(JsonElement Raw) : SdkEvent("agent_start", Raw);
 
-public sealed record AgentEndEvent(JsonElement Raw) : SdkEvent("agent_end", Raw);
+public sealed record AgentEndEvent(JsonElement Raw) : SdkEvent("agent_end", Raw)
+{
+    public string? Reason => StepControl.Reason(Raw);
+}
 
 public sealed record TurnStartEvent(JsonElement Raw) : SdkEvent("turn_start", Raw);
 
@@ -23,7 +26,10 @@ public sealed record TurnEndEvent(
     long? DurationMs,
     double? ContextPercent,
     JsonElement Raw)
-    : SdkEvent("turn_end", Raw);
+    : SdkEvent("turn_end", Raw)
+{
+    public string? Reason => StepControl.Reason(Raw);
+}
 
 public sealed record MessageStartEvent(JsonElement Raw) : SdkEvent("message_start", Raw);
 
@@ -258,6 +264,7 @@ internal static class SdkEventParser
 
         return type switch
         {
+            "step_end" => (SdkEvent?)StepControl.Parse(raw) ?? new UnknownEvent(method, raw),
             "agent_start" => new AgentStartEvent(raw),
             "agent_end" => new AgentEndEvent(raw),
             "turn_start" => new TurnStartEvent(raw),
@@ -436,6 +443,7 @@ internal static class SdkEventParser
             "autohand.agentEnd" => "agent_end",
             "autohand.turnStart" => "turn_start",
             "autohand.turnEnd" => "turn_end",
+            "autohand.stepEnd" => "step_end",
             "autohand.messageStart" => "message_start",
             "autohand.messageUpdate" => "message_update",
             "autohand.messageEnd" => "message_end",
@@ -486,6 +494,7 @@ internal static class SdkEventParser
 
     private static bool IsStrictFeatureType(string type) =>
         type is
+            "step_end" or
             "automode_iteration" or
             "automode_complete" or
             "automode_error" or

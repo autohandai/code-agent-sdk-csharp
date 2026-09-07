@@ -19,6 +19,7 @@ Use it when you want Autohand inside developer tools, build systems, web service
 ## Features
 
 - `Agent` and `Run` for high-level application workflows
+- Host-side asynchronous stop conditions, persisted tool steps, and same-session continuation
 - `AutohandSdk` for direct low-level RPC access
 - `IAsyncEnumerable<SdkEvent>` streaming for tokens, tools, permissions, and errors
 - Typed records for all 16 CLI hook notifications, with exact raw fallback for unknown or malformed payloads
@@ -211,6 +212,7 @@ The `examples/` directory mirrors the TypeScript SDK example inventory:
 - `24-high-level-agent`
 - `25-structured-json`
 - `27-autoresearch-ledger`
+- `28-step-control`
 - `basic-agent`
 - `basic-usage`
 - `loop-strategies`
@@ -232,6 +234,7 @@ Live examples require an authenticated Autohand CLI and may ask for tool permiss
 - [API Reference](./docs/API_REFERENCE.md)
 - [Configuration](./docs/configuration.md)
 - [Event Streaming](./docs/event-streaming.md)
+- [Step Control](./docs/step-control.md)
 - [Permissions](./docs/permissions.md)
 - [Plan Mode](./docs/plan-mode.md)
 - [SDLC Workflows](./docs/sdlc-workflows.md)
