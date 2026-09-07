@@ -1,5 +1,19 @@
 namespace Autohand.CodeAgentSdk;
 
+/// <summary>Effective subagent metadata from the running CLI session.</summary>
+public sealed record AgentInfo(
+    string Id,
+    string Name,
+    string Description,
+    IReadOnlyList<string> Tools,
+    string? Model = null,
+    string? Source = null,
+    string? ExtensionId = null,
+    string? ExtensionVersion = null,
+    string? ExtensionScope = null);
+
+internal sealed record SupportedAgentsResult(IReadOnlyList<AgentInfo> Agents);
+
 /// <summary>Result returned after acknowledging receipt of a permission prompt.</summary>
 public sealed record PermissionAcknowledgementResult(bool Success);
 

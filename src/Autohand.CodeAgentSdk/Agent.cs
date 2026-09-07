@@ -86,6 +86,10 @@ public sealed class Agent : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         _sdk.SetPlanModeAsync(enabled, cancellationToken);
 
+    public Task<IReadOnlyList<AgentInfo>> GetSupportedAgentsAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetSupportedAgentsAsync(cancellationToken);
+
     public Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default) =>
         _sdk.GetSupportedCommandsAsync(cancellationToken);

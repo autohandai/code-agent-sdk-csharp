@@ -298,6 +298,22 @@ public sealed class AutohandSdk : IAsyncDisposable
             parameters ?? new AutoModeGetLogParams(),
             cancellationToken);
 
+    /// <summary>Return effective subagents, including inline and enabled extension agents.</summary>
+    public async Task<IReadOnlyList<AgentInfo>> GetSupportedAgentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RequestTypedAsync<SupportedAgentsResult>(
+            "autohand.getSupportedAgents", new { }, cancellationToken).ConfigureAwait(false);
+        if (result.Agents is null || result.Agents.Any(agent =>
+                agent is null || agent.Id is null || agent.Name is null || agent.Description is null ||
+                agent.Tools is null || agent.Tools.Any(tool => tool is null) ||
+                agent.ExtensionScope is not (null or "user" or "project")))
+        {
+            throw new JsonException("Invalid agent discovery result.");
+        }
+        return result.Agents;
+    }
+
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
     {

@@ -6,6 +6,38 @@ namespace Autohand.CodeAgentSdk.Tests;
 public sealed class SdkControlE2ETests
 {
     [Fact]
+    public async Task DiscoversEffectiveAgentsThroughSpawnedCli()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create();
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+        var agent = Assert.Single(await sdk.GetSupportedAgentsAsync());
+        Assert.Equal("reviewer", agent.Id);
+        Assert.Equal(["read_file"], agent.Tools);
+        Assert.Equal("fantail", agent.Model);
+        Assert.Equal("extension", agent.Source);
+        Assert.Equal("example.review", agent.ExtensionId);
+        Assert.Equal("1.0.0", agent.ExtensionVersion);
+        Assert.Equal("project", agent.ExtensionScope);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"agents\":null}")]
+    [InlineData("{\"agents\":[{}]}")]
+    [InlineData("{\"agents\":[{\"id\":\"one\",\"name\":\"one\",\"description\":\"Agent\",\"tools\":[1]}]}")]
+    [InlineData("{\"agents\":[{\"id\":\"one\",\"name\":\"one\",\"description\":\"Agent\",\"tools\":[],\"extensionScope\":\"invalid\"}]}")]
+    public async Task RejectsMalformedAgentDiscovery(string result)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using var fixture = FeatureRpcFixture.Create(result);
+        await using var sdk = CreateSdk(fixture);
+        await sdk.StartAsync();
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => sdk.GetSupportedAgentsAsync());
+    }
+
+    [Fact]
     public async Task AcknowledgesPermissionThroughSpawnedCli()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -660,15 +692,19 @@ public sealed class SdkControlE2ETests
         public string Directory { get; }
         public string Path { get; }
 
-        public static FeatureRpcFixture Create()
+        public static FeatureRpcFixture Create(string? agentsResult = null)
         {
             var directory = System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(), $"autohand-csharp-features-{Guid.NewGuid():N}");
             System.IO.Directory.CreateDirectory(directory);
+            File.WriteAllText(System.IO.Path.Combine(directory, "agents.json"), agentsResult ?? """
+                {"agents":[{"id":"reviewer","name":"reviewer","description":"Review changes","tools":["read_file"],"model":"fantail","source":"extension","extensionId":"example.review","extensionVersion":"1.0.0","extensionScope":"project"}]}
+                """);
             var path = System.IO.Path.Combine(directory, "fake-rpc-cli");
             File.WriteAllText(path, """
                 #!/usr/bin/env python3
                 import json
+                import os
                 import sys
 
                 def emit(value):
@@ -684,6 +720,10 @@ public sealed class SdkControlE2ETests
                     emit({"jsonrpc": "2.0", "method": method, "params": params})
 
                 def result_for(method, params):
+                    if method == "autohand.getSupportedAgents":
+                        assert params == {}
+                        with open(os.path.join(os.path.dirname(__file__), "agents.json")) as agents:
+                            return json.load(agents)
                     if method == "autohand.permissionAcknowledged":
                         return {"success": list(params.keys()) == ["requestId"] and params.get("requestId") == "permission-1"}
                     if method == "autohand.directoryAccessResponse":
