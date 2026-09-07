@@ -385,6 +385,11 @@ internal sealed class Transport : ITransport
             environment["AUTOHAND_AI_BASE_URL"] = _options.BaseUrl;
         }
 
+        if (_options.Provider is not null)
+        {
+            environment["AUTOHAND_PROVIDER"] = _options.Provider;
+        }
+
         return environment;
     }
 

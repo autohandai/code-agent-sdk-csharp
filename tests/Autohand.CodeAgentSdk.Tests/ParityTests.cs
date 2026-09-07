@@ -54,6 +54,7 @@ public sealed class ParityTests
         Assert.Equal("team", ValueAfter(args, "--skill-sources"));
         Assert.Contains("--install-missing-skills", args);
         var environment = transport.BuildEnvironmentOverrides();
+        Assert.Equal("autohandai", environment["AUTOHAND_PROVIDER"]);
         Assert.Equal("test-key", environment["AUTOHAND_AI_API_KEY"]);
         Assert.Equal("https://example.test", environment["AUTOHAND_AI_BASE_URL"]);
     }
