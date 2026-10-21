@@ -5,6 +5,13 @@ namespace Autohand.CodeAgentSdk.Tests;
 
 public sealed class RuntimeSettingsTests
 {
+    [Fact]
+    public void AutoCommitUsesLongFlag()
+    {
+        var args = new Transport(new() { AutoCommit = true }).BuildArguments();
+        Assert.Contains("--auto-commit", args);
+        Assert.DoesNotContain("-c", args);
+    }
     [Theory]
     [InlineData("anthropic", "apiKey", "baseUrl", null, null)]
     [InlineData("openai", "apiKey", "baseUrl", "authMode", "api-key")]

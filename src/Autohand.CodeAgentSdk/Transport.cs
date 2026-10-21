@@ -303,7 +303,7 @@ internal sealed class Transport : ITransport
         AddFlag(args, _options.Unrestricted, "--unrestricted");
         AddFlag(args, _options.AutoMode, "--auto-mode");
         AddFlag(args, _options.AutoSkill, "--auto-skill");
-        AddFlag(args, _options.AutoCommit, "-c");
+        AddFlag(args, _options.AutoCommit, "--auto-commit");
         AddFlag(args, _options.AgentsMdCreate, "--agents-md-create");
         AddFlag(args, _options.AgentsMdAutoUpdate, "--agents-md-auto-update");
 
