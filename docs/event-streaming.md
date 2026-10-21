@@ -1,6 +1,11 @@
 # Event Streaming
 
 `StreamPromptAsync()` starts a prompt and yields events as they arrive.
+Both it and `PromptAsync()` wait for the terminal event and the prompt RPC
+response. Acknowledgement alone does not complete a prompt. Disposing a prompt
+stream early aborts its turn and drains terminal notifications before the next
+queued prompt starts; if cleanup cannot finish within five seconds, the SDK
+stops the CLI process.
 
 `EventsAsync()` creates an independent observer subscription, so multiple
 observers and a prompt stream each receive the same notifications. Each
@@ -27,10 +32,12 @@ await foreach (var item in sdk.StreamPromptAsync("Explain closures in one senten
 - `ToolStartEvent`: a tool started.
 - `ToolUpdateEvent`: streaming tool output.
 - `ToolEndEvent`: a tool completed.
+- `StepEndEvent`: persisted tool calls and results, with a host decision boundary
+  when [stop conditions](./step-control.md) are configured.
 - `PermissionRequestEvent`: host approval is required.
 - `ErrorEvent`: agent or transport error.
 - `TurnEndEvent`: typed `TokensUsed`, `TokensUsageStatus`, `DurationMs`, and
-  `ContextPercent` values when the CLI reports them.
+  `ContextPercent` values when the CLI reports them, plus the terminal `Reason`.
 - `AutoresearchEvent`: lifecycle and ledger-operation notifications with typed
   phase, operation, success, attempt ID, and applied state.
 

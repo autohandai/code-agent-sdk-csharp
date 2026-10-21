@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Autohand.CodeAgentSdk;
 
 /// <summary>
@@ -38,12 +40,23 @@ public sealed class Agent : IAsyncDisposable
     public Run Autoresearch(string objective, PromptOptions? options = null) =>
         Command("/autoresearch", objective, options);
 
-    public IAsyncEnumerable<SdkEvent> StreamAsync(
+    public async IAsyncEnumerable<SdkEvent> StreamAsync(
         string prompt,
         PromptOptions? options = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        return Send(prompt, options).StreamAsync(cancellationToken);
+        var run = Send(prompt, options);
+        using var cancellation = cancellationToken.Register(run.Cancel);
+        var completed = false;
+        try
+        {
+            await foreach (var item in run.StreamAsync(cancellationToken).ConfigureAwait(false)) yield return item;
+            completed = true;
+        }
+        finally
+        {
+            if (!completed) await run.AbortAsync().ConfigureAwait(false);
+        }
     }
 
     public async Task<RunResult> RunAsync(
@@ -51,7 +64,9 @@ public sealed class Agent : IAsyncDisposable
         PromptOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        return await Send(prompt, options).WaitAsync(cancellationToken).ConfigureAwait(false);
+        var run = Send(prompt, options);
+        using var cancellation = cancellationToken.Register(run.Cancel);
+        return await run.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<T> RunJsonAsync<T>(
@@ -60,8 +75,8 @@ public sealed class Agent : IAsyncDisposable
         PromptOptions? promptOptions = null,
         CancellationToken cancellationToken = default)
     {
-        var run = Send(JsonOutput.WithJsonInstruction(prompt, jsonOptions), promptOptions);
-        var result = await run.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var result = await RunAsync(JsonOutput.WithJsonInstruction(prompt, jsonOptions), promptOptions, cancellationToken)
+            .ConfigureAwait(false);
         return JsonOutput.Parse<T>(result.Text, jsonOptions);
     }
 
@@ -85,6 +100,10 @@ public sealed class Agent : IAsyncDisposable
         bool enabled,
         CancellationToken cancellationToken = default) =>
         _sdk.SetPlanModeAsync(enabled, cancellationToken);
+
+    public Task<IReadOnlyList<AgentInfo>> GetSupportedAgentsAsync(
+        CancellationToken cancellationToken = default) =>
+        _sdk.GetSupportedAgentsAsync(cancellationToken);
 
     public Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default) =>
@@ -129,6 +148,42 @@ public sealed class Agent : IAsyncDisposable
 
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         _sdk.ResetAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetBrowserCapabilitiesAsync(int protocolVersion, string extensionVersion, IReadOnlyList<string> tools, CancellationToken cancellationToken = default) =>
+        _sdk.SetBrowserCapabilitiesAsync(protocolVersion, extensionVersion, tools, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMaxThinkingTokensAsync(int? maxThinkingTokens, CancellationToken cancellationToken = default) =>
+        _sdk.SetMaxThinkingTokensAsync(maxThinkingTokens, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetSupportedModelsAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetSupportedModelsAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetContextUsageAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetContextUsageAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReloadPluginsAsync(CancellationToken cancellationToken = default) =>
+        _sdk.ReloadPluginsAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetAccountInfoAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetAccountInfoAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default) =>
+        _sdk.ToggleMcpServerAsync(serverName, enabled, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
+        _sdk.ReconnectMcpServerAsync(serverName, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMcpServersAsync(IReadOnlyDictionary<string, object> servers, CancellationToken cancellationToken = default) =>
+        _sdk.SetMcpServersAsync(servers, cancellationToken);
 
     public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
         BrowserHandoffCreateParams? parameters = null,

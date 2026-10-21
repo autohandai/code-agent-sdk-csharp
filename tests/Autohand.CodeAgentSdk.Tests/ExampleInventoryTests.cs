@@ -23,6 +23,7 @@ public sealed class ExampleInventoryTests
         "24-high-level-agent",
         "25-structured-json",
         "27-autoresearch-ledger",
+        "28-step-control",
         "basic-agent",
         "basic-usage",
         "loop-strategies",

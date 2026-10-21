@@ -98,6 +98,7 @@ Methods:
 - `DeepResearch(topic, options)`
 - `Autoresearch(objective, options)`
 - `RunAsync(prompt, options)`
+- `StreamAsync(prompt, options)`: stream a run and abort unfinished work on disposal.
 - `RunJsonAsync<T>(prompt, jsonOptions, promptOptions)`
 - `AllowPermissionAsync(requestId)`
 - `DenyPermissionAsync(requestId)`
@@ -111,9 +112,15 @@ Methods:
 Represents a single agent run.
 
 - `StreamAsync()`: stream events.
-- `WaitAsync()`: wait until the run finishes and collect text/events.
+- `WaitAsync()`: wait until the run finishes and collect text, events, and persisted steps.
 - `JsonAsync<T>()`: parse final output as JSON.
-- `AbortAsync()`: interrupt the current run.
+- `AbortAsync()`: cancel this run and await cleanup; queued runs do not interrupt the active run.
+
+`PromptOptions.StopWhen` accepts host-only asynchronous `StopCondition` delegates.
+`StopConditions.IsStepCount(n)` and `StopConditions.HasToolCall(name)` provide
+common predicates. `RunResult.Steps` contains the current prompt's completed
+steps; `Status` is `stopped` when a stop condition ends the turn. See
+[Step Control](./step-control.md) for continuation and cancellation semantics.
 
 ## `SdkEvent`
 
@@ -124,6 +131,7 @@ Common event records:
 - `AgentStartEvent`
 - `TurnStartEvent`
 - `TurnEndEvent` with token, usage-status, duration, and context fields
+- `StepEndEvent` with typed persisted tool calls and results
 - `MessageUpdateEvent`
 - `MessageEndEvent`
 - `ToolStartEvent`

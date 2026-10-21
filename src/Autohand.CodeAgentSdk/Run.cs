@@ -13,11 +13,11 @@ public sealed class Run
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenSource _runCancellation = new();
     private readonly object _sync = new();
-    private readonly AutohandSdk _sdk;
+    private readonly List<AgentStep> _steps = new();
+    private string _status = "completed";
 
     internal Run(AutohandSdk sdk, string prompt, PromptOptions? options)
     {
-        _sdk = sdk;
         Id = $"run_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds():x}_{Guid.NewGuid():N}"[..28];
         _ = Task.Run(() => PumpAsync(sdk, prompt, options, _runCancellation.Token));
     }
@@ -49,9 +49,11 @@ public sealed class Run
 
     public async Task AbortAsync(CancellationToken cancellationToken = default)
     {
-        _runCancellation.Cancel();
-        await _sdk.InterruptAsync(cancellationToken).ConfigureAwait(false);
+        Cancel();
+        await _completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    internal void Cancel() => _runCancellation.Cancel();
 
     private async Task PumpAsync(
         AutohandSdk sdk,
@@ -68,7 +70,7 @@ public sealed class Run
                 await _stream.Writer.WriteAsync(item, cancellationToken).ConfigureAwait(false);
             }
 
-            Complete("completed");
+            Complete(_status);
         }
         catch (OperationCanceledException)
         {
@@ -88,6 +90,15 @@ public sealed class Run
             _events.Add(item);
             switch (item)
             {
+                case StepEndEvent step:
+                    _steps.Add(step.Step);
+                    break;
+                case TurnEndEvent end:
+                    _status = StatusFromReason(end.Reason);
+                    break;
+                case AgentEndEvent end when _status == "completed":
+                    _status = StatusFromReason(end.Reason);
+                    break;
                 case MessageUpdateEvent { Delta: { } delta }:
                     _text.Append(delta);
                     break;
@@ -104,16 +115,26 @@ public sealed class Run
         RunResult result;
         lock (_sync)
         {
-            result = new RunResult(Id, status, _text.ToString(), _events.ToArray());
+            result = new RunResult(Id, status, _text.ToString(), _events.ToArray()) { Steps = _steps.AsReadOnly() };
         }
 
         _completion.TrySetResult(result);
         _stream.Writer.TryComplete();
     }
+
+    private static string StatusFromReason(string? reason) => reason switch
+    {
+        "stop_condition" => "stopped",
+        "aborted" => "aborted",
+        _ => "completed",
+    };
 }
 
 public sealed record RunResult(
     string Id,
     string Status,
     string Text,
-    IReadOnlyList<SdkEvent> Events);
+    IReadOnlyList<SdkEvent> Events)
+{
+    public IReadOnlyList<AgentStep> Steps { get; init; } = Array.Empty<AgentStep>();
+}

@@ -38,7 +38,7 @@ public sealed class AutohandSdk : IAsyncDisposable
             await _transport.StartAsync(cancellationToken).ConfigureAwait(false);
             if (Options.Features is not null)
             {
-                await ApplyFlagSettingsAsync(new { features = Options.Features }, cancellationToken)
+                await RequestAsync("autohand.getState", new { }, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -71,124 +71,122 @@ public sealed class AutohandSdk : IAsyncDisposable
         PromptOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        return await RequestAsync("autohand.prompt", BuildPromptParameters(message, options), cancellationToken)
-            .ConfigureAwait(false);
+        JsonElement response = default;
+        await foreach (var _ in StreamPromptCoreAsync(message, options, result => response = result, cancellationToken)
+                           .ConfigureAwait(false)) { }
+        return response;
     }
 
-    public async IAsyncEnumerable<SdkEvent> StreamPromptAsync(
-        string message,
-        PromptOptions? options = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public IAsyncEnumerable<SdkEvent> StreamPromptAsync(
+        string message, PromptOptions? options = null, CancellationToken cancellationToken = default) =>
+        StreamPromptCoreAsync(message, options, null, cancellationToken);
+
+    private async IAsyncEnumerable<SdkEvent> StreamPromptCoreAsync(
+        string message, PromptOptions? options, Action<JsonElement>? onResponse,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var conditions = options?.StopWhen.ToArray() ?? Array.Empty<StopCondition>();
+        if (conditions.Any(condition => condition is null)) throw new ArgumentException("Stop conditions must not be null", nameof(options));
         await _promptLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await using var subscription = _transport.SubscribeEvents();
             using var promptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            using var eventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var enumerator = subscription.ReadAllAsync(eventCancellation.Token)
-                .GetAsyncEnumerator(eventCancellation.Token);
-            var requestTask = PromptAsync(message, options, promptCancellation.Token);
+            using var eventCancellation = new CancellationTokenSource();
+            var enumerator = subscription.ReadAllAsync(eventCancellation.Token).GetAsyncEnumerator();
+            var requestTask = RequestAsync("autohand.prompt", BuildPromptParameters(message, options), promptCancellation.Token);
+            var steps = new List<AgentStep>();
             Task<bool>? moveTask = null;
-
+            Task<StepDecision>? decisionTask = null;
+            Exception? conditionFailure = null;
+            var terminalSeen = false;
+            var requestAcknowledged = false;
             try
             {
-                while (true)
+                while (!terminalSeen)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (requestTask.IsFaulted || requestTask.IsCanceled) await requestTask.ConfigureAwait(false);
                     moveTask ??= enumerator.MoveNextAsync().AsTask();
-                    var completed = await Task.WhenAny(moveTask, requestTask).ConfigureAwait(false);
-                    if (completed == moveTask)
+                    var pending = new List<Task> { moveTask };
+                    if (!requestAcknowledged) pending.Add(requestTask);
+                    if (decisionTask is not null) pending.Add(decisionTask);
+                    await Task.WhenAny(pending).WaitAsync(Options.RequestTimeout, cancellationToken).ConfigureAwait(false);
+                    if (moveTask.IsCompleted)
                     {
-                        if (await moveTask.ConfigureAwait(false))
-                        {
-                            var item = enumerator.Current;
-                            moveTask = null;
-                            yield return item;
-                            continue;
-                        }
-
-                        await requestTask.ConfigureAwait(false);
-                        break;
-                    }
-
-                    await requestTask.ConfigureAwait(false);
-                    eventCancellation.Cancel();
-                    if (await AwaitMoveNextAsync(moveTask, eventCancellation.Token).ConfigureAwait(false))
-                    {
+                        if (!await moveTask.ConfigureAwait(false))
+                            throw new AutohandSdkException("CLI event stream closed before prompt completion");
                         var item = enumerator.Current;
                         moveTask = null;
+                        if (item is UnknownEvent { EventType: "autohand.stepEnd" })
+                            throw new AutohandSdkException("Malformed autohand.stepEnd notification");
+                        if (item is StepEndEvent step)
+                        {
+                            steps.Add(step.Step);
+                            decisionTask = StepControl.EvaluateAsync(step.StepId, conditions,
+                                new StopConditionContext(steps), promptCancellation.Token);
+                        }
+                        terminalSeen = StepControl.IsTerminal(item);
                         yield return item;
                     }
-
-                    while (subscription.TryRead(out var buffered) && buffered is not null)
+                    else if (decisionTask is { IsCompleted: true })
                     {
-                        yield return buffered;
+                        var decision = await decisionTask.ConfigureAwait(false);
+                        decisionTask = null;
+                        var result = await RequestAsync("autohand.stepDecision",
+                            new { stepId = decision.StepId, stop = decision.Stop }, promptCancellation.Token).ConfigureAwait(false);
+                        if (result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("success", out var success)
+                            || success.ValueKind != JsonValueKind.True)
+                            throw new AutohandSdkException("Invalid or rejected autohand.stepDecision result");
+                        conditionFailure = decision.Failure;
                     }
-
-                    break;
+                    else
+                    {
+                        await requestTask.ConfigureAwait(false);
+                        requestAcknowledged = true;
+                    }
                 }
+                var response = await requestTask.ConfigureAwait(false);
+                onResponse?.Invoke(response);
             }
             finally
             {
-                var canceledForDisposal = !requestTask.IsCompleted || requestTask.IsCanceled;
-                eventCancellation.Cancel();
-                if (canceledForDisposal)
+                promptCancellation.Cancel();
+                if (!terminalSeen && _transport.IsStarted)
                 {
-                    promptCancellation.Cancel();
-                }
-
-                if (moveTask is not null)
-                {
+                    using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                     try
                     {
-                        await moveTask.ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (eventCancellation.IsCancellationRequested)
-                    {
-                    }
-                }
-
-                try
-                {
-                    await enumerator.DisposeAsync().ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (eventCancellation.IsCancellationRequested)
-                {
-                }
-
-                try
-                {
-                    await requestTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (canceledForDisposal)
-                {
-                }
-
-                if (canceledForDisposal && _transport.IsStarted)
-                {
-                    using var abortTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    try
-                    {
-                        await InterruptAsync(abortTimeout.Token).ConfigureAwait(false);
-                        while (subscription.TryRead(out _))
+                        await InterruptAsync(cleanup.Token).ConfigureAwait(false);
+                        while (true)
                         {
+                            moveTask ??= enumerator.MoveNextAsync().AsTask();
+                            if (!await moveTask.WaitAsync(cleanup.Token).ConfigureAwait(false))
+                                throw new AutohandSdkException("CLI event stream closed during abort cleanup");
+                            moveTask = null;
+                            if (StepControl.IsTerminal(enumerator.Current)) break;
                         }
                     }
-                    catch (Exception exception) when (
-                        exception is OperationCanceledException or AutohandSdkException or IOException)
+                    catch (Exception)
                     {
                         await _transport.StopAsync(CancellationToken.None).ConfigureAwait(false);
-                        throw new AutohandSdkException(
-                            "Failed to abort an abandoned prompt; the transport was stopped to prevent event contamination.",
-                            exception);
                     }
                 }
+                eventCancellation.Cancel();
+                if (moveTask is not null) await ObserveAsync(moveTask).ConfigureAwait(false);
+                await ObserveAsync(enumerator.DisposeAsync().AsTask()).ConfigureAwait(false);
+                await ObserveAsync(requestTask).ConfigureAwait(false);
+                if (decisionTask is not null) await ObserveAsync(decisionTask).ConfigureAwait(false);
             }
+            if (conditionFailure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(conditionFailure).Throw();
         }
-        finally
-        {
-            _promptLock.Release();
-        }
+        finally { _promptLock.Release(); }
+    }
+
+    private static async Task ObserveAsync(Task task)
+    {
+        try { await task.ConfigureAwait(false); }
+        catch (Exception) { /* The main loop already reports failure; cleanup observes remaining work. */ }
     }
 
     public async IAsyncEnumerable<SdkEvent> EventsAsync(
@@ -229,6 +227,42 @@ public sealed class AutohandSdk : IAsyncDisposable
 
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         RequestTypedAsync<ResetResult>("autohand.reset", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetBrowserCapabilitiesAsync(int protocolVersion, string extensionVersion, IReadOnlyList<string> tools, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.browserCapabilities.set", new { protocolVersion, extensionVersion, tools }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMaxThinkingTokensAsync(int? maxThinkingTokens, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.maxThinkingTokensSet", new JsonObject { ["maxThinkingTokens"] = maxThinkingTokens }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetSupportedModelsAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getSupportedModels", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetContextUsageAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getContextUsage", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReloadPluginsAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.reloadPlugins", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetAccountInfoAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getAccountInfo", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.toggleServer", new { serverName, enabled }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.reconnectServer", new { serverName }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMcpServersAsync(IReadOnlyDictionary<string, object> servers, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.setServers", new { servers }, cancellationToken);
 
     public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
         BrowserHandoffCreateParams? parameters = null,
@@ -297,6 +331,22 @@ public sealed class AutohandSdk : IAsyncDisposable
             "autohand.automode.getLog",
             parameters ?? new AutoModeGetLogParams(),
             cancellationToken);
+
+    /// <summary>Return effective subagents, including inline and enabled extension agents.</summary>
+    public async Task<IReadOnlyList<AgentInfo>> GetSupportedAgentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RequestTypedAsync<SupportedAgentsResult>(
+            "autohand.getSupportedAgents", new { }, cancellationToken).ConfigureAwait(false);
+        if (result.Agents is null || result.Agents.Any(agent =>
+                agent is null || agent.Id is null || agent.Name is null || agent.Description is null ||
+                agent.Tools is null || agent.Tools.Any(tool => tool is null) ||
+                agent.ExtensionScope is not (null or "user" or "project")))
+        {
+            throw new JsonException("Invalid agent discovery result.");
+        }
+        return result.Agents;
+    }
 
     public async Task<IReadOnlyList<string>> GetSupportedCommandsAsync(
         CancellationToken cancellationToken = default)
@@ -713,6 +763,7 @@ public sealed class AutohandSdk : IAsyncDisposable
             }
         }
 
+        if (options?.StopWhen.Count > 0) payload["stopWhen"] = new JsonObject { ["mode"] = "host" };
         return payload;
     }
 
@@ -724,19 +775,5 @@ public sealed class AutohandSdk : IAsyncDisposable
         var result = await RequestAsync(method, parameters, cancellationToken).ConfigureAwait(false);
         return result.Deserialize<T>(RpcJsonOptions)
             ?? throw new AutohandSdkException($"RPC method {method} returned an empty result.");
-    }
-
-    private static async Task<bool> AwaitMoveNextAsync(
-        Task<bool> moveTask,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await moveTask.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
     }
 }

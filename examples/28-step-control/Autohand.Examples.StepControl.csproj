@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Examples.Shared.props" />
+</Project>

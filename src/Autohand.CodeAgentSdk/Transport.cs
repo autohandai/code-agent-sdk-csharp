@@ -84,6 +84,9 @@ internal sealed class Transport : ITransport
             await StopCoreAsync().ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
+            _ = RuntimeSettings.Build(_options);
+            var generatedArgs = BuildArguments();
+            CliCompatibility.Validate(generatedArgs.Take(generatedArgs.Count - _options.ExtraArgs.Count).ToArray());
             var startInfo = new ProcessStartInfo
             {
                 FileName = _options.CliPath ?? "autohand",
@@ -293,16 +296,14 @@ internal sealed class Transport : ITransport
     internal IReadOnlyList<string> BuildArguments()
     {
         var args = new List<string> { "--mode", "rpc" };
+        if (_options.Ephemeral) args.Add("--ephemeral");
 
         AddFlag(args, _options.Bare, "--bare");
         AddFlag(args, _options.IdleLogout == false, "--no-idle-logout");
         AddFlag(args, _options.Unrestricted, "--unrestricted");
         AddFlag(args, _options.AutoMode, "--auto-mode");
         AddFlag(args, _options.AutoSkill, "--auto-skill");
-        AddFlag(args, _options.AutoCommit, "-c");
-        AddFlag(args, _options.PersistSession, "--persist-session");
-        AddFlag(args, _options.Resume, "--resume");
-        AddFlag(args, _options.ContinueSession, "--continue");
+        AddFlag(args, _options.AutoCommit, "--auto-commit");
         AddFlag(args, _options.AgentsMdCreate, "--agents-md-create");
         AddFlag(args, _options.AgentsMdAutoUpdate, "--agents-md-auto-update");
 
@@ -327,8 +328,12 @@ internal sealed class Transport : ITransport
         AddValue(args, "--max-iterations", _options.MaxIterations);
         AddValue(args, "--max-runtime", _options.MaxRuntimeMinutes);
         AddValue(args, "--max-cost", _options.MaxCost);
-        AddValue(args, "--session-id", _options.SessionId);
-        AddValue(args, "--session-path", _options.SessionPath);
+        if (_options.ForkSession is null)
+        {
+            var reference = _options.SessionId ?? _options.SessionPath;
+            if (reference is not null) AddValue(args, "--sdk-session-reference", reference);
+            else if (_options.Resume || _options.ContinueSession) args.Add("--sdk-resume-last");
+        }
         AddValue(args, "--auto-save-interval", _options.AutoSaveInterval);
         AddValue(args, "--max-tokens", _options.MaxTokens);
         AddValue(args, "--compression-threshold", _options.CompressionThreshold);
@@ -346,7 +351,7 @@ internal sealed class Transport : ITransport
         AddValue(args, "--agents", _options.Agents);
         AddValue(args, "--plugin-dir", _options.PluginDirectory);
         AddValue(args, "--yolo", _options.Yolo);
-        AddValue(args, "--yolo-timeout", _options.YoloTimeoutSeconds);
+        AddValue(args, "--timeout", _options.YoloTimeoutSeconds);
 
         if (_options.Skills.Count > 0)
         {
@@ -368,6 +373,8 @@ internal sealed class Transport : ITransport
             args.Add(directory);
         }
 
+        if (RuntimeSettings.Needed(_options) || _options.Environment.ContainsKey("AUTOHAND_RUN_SETTINGS"))
+            args.AddRange(new[] { "--sdk-settings-version", "1" });
         args.AddRange(_options.ExtraArgs);
         return args;
     }
@@ -380,7 +387,7 @@ internal sealed class Transport : ITransport
         };
         if (string.Equals(_options.Provider, "autohandai", StringComparison.OrdinalIgnoreCase))
         {
-            environment["AUTOHAND_AI_PLAN"] = _options.AutohandAiPlan ?? "cloud";
+            if (_options.AutohandAiPlan is not null) environment["AUTOHAND_AI_PLAN"] = _options.AutohandAiPlan;
             environment["AUTOHAND_AI_API_KEY"] = _options.ApiKey;
             environment["AUTOHAND_AI_BASE_URL"] = _options.BaseUrl;
         }
@@ -390,6 +397,7 @@ internal sealed class Transport : ITransport
             environment["AUTOHAND_PROVIDER"] = _options.Provider;
         }
 
+        if (RuntimeSettings.Needed(_options)) environment["AUTOHAND_RUN_SETTINGS"] = RuntimeSettings.Build(_options).ToJsonString();
         return environment;
     }
 

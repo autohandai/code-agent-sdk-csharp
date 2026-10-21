@@ -22,6 +22,9 @@ public record AutohandOptions
     public bool AgentsMdCreate { get; init; }
     public string? AgentsMdPath { get; init; }
     public bool AgentsMdAutoUpdate { get; init; }
+    /// <summary>Keep this run out of session history and synchronization.</summary>
+    public bool Ephemeral { get; init; }
+    /// <summary>Legacy compatibility; use Ephemeral to disable persistence.</summary>
     public bool PersistSession { get; init; }
     public string? SessionId { get; init; }
     public bool Resume { get; init; }
@@ -59,6 +62,19 @@ public record AutohandOptions
     public string? ApiKey { get; init; }
     public string? BaseUrl { get; init; }
     public string? AutohandAiPlan { get; init; }
+    /// <summary>Native CLI settings for this process only. Never saved to user configuration.</summary>
+    public JsonObject? RunSettings { get; init; }
+    public int? Port { get; init; }
+    public string? OpenaiAuthMode { get; init; }
+    public string? ChatgptAccessToken { get; init; }
+    public string? ChatgptAccountId { get; init; }
+    public string? AzureAuthMethod { get; init; }
+    public string? AzureTenantId { get; init; }
+    public string? AzureClientId { get; init; }
+    public string? AzureClientSecret { get; init; }
+    public string? AzureResourceName { get; init; }
+    public string? AzureDeploymentName { get; init; }
+    public string? AzureApiVersion { get; init; }
 }
 
 /// <summary>
@@ -74,6 +90,9 @@ public sealed record ImageAttachment(string Data, string MimeType);
 
 public sealed record PromptOptions
 {
+    /// <summary>Host-only predicates evaluated after persisted tool results.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<StopCondition> StopWhen { get; init; } = Array.Empty<StopCondition>();
     public JsonObject? Context { get; init; }
     public IReadOnlyList<ImageAttachment> Images { get; init; } = Array.Empty<ImageAttachment>();
     public string? ThinkingLevel { get; init; }
