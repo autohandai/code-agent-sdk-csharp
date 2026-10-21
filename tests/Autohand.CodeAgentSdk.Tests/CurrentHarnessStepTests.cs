@@ -26,6 +26,7 @@ public sealed class CurrentHarnessStepTests
         listener.Start();
         using var shutdown = new CancellationTokenSource();
         var requests = new ConcurrentQueue<JsonElement>();
+        var authRequests = new ConcurrentQueue<string?>();
         Exception? serverFailure = null;
         var server = Task.Run(async () =>
         {
@@ -39,7 +40,9 @@ public sealed class CurrentHarnessStepTests
                     object response;
                     if (context.Request.Url!.AbsolutePath == "/auth/me")
                     {
-                        Assert.Equal("Bearer session-token", context.Request.Headers["Authorization"]);
+                        var token = context.Request.Headers["Authorization"];
+                        authRequests.Enqueue(token);
+                        Assert.Contains(token, new[] { "Bearer session-token", "Bearer inference-key" });
                         response = new { user = new { id = "csharp-sdk", email = "sdk@example.test" } };
                     }
                     else
@@ -165,6 +168,7 @@ public sealed class CurrentHarnessStepTests
             Assert.Equal(saved.openai.model, provider.GetProperty("model").GetString());
             Assert.Equal(saved.openai.baseUrl, provider.GetProperty("baseUrl").GetString());
             Assert.False(persisted.RootElement.TryGetProperty("autohandai", out _));
+            Assert.Equal("Bearer session-token", authRequests.First());
             Assert.Null(serverFailure);
         }
         finally

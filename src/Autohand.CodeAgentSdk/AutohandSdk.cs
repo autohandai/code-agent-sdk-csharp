@@ -38,7 +38,7 @@ public sealed class AutohandSdk : IAsyncDisposable
             await _transport.StartAsync(cancellationToken).ConfigureAwait(false);
             if (Options.Features is not null)
             {
-                await ApplyFlagSettingsAsync(new { features = Options.Features }, cancellationToken)
+                await RequestAsync("autohand.getState", new { }, cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -227,6 +227,42 @@ public sealed class AutohandSdk : IAsyncDisposable
 
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         RequestTypedAsync<ResetResult>("autohand.reset", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetBrowserCapabilitiesAsync(int protocolVersion, string extensionVersion, IReadOnlyList<string> tools, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.browserCapabilities.set", new { protocolVersion, extensionVersion, tools }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMaxThinkingTokensAsync(int? maxThinkingTokens, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.maxThinkingTokensSet", new JsonObject { ["maxThinkingTokens"] = maxThinkingTokens }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetSupportedModelsAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getSupportedModels", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetContextUsageAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getContextUsage", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReloadPluginsAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.reloadPlugins", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetAccountInfoAsync(CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.getAccountInfo", new { }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.toggleServer", new { serverName, enabled }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.reconnectServer", new { serverName }, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMcpServersAsync(IReadOnlyDictionary<string, object> servers, CancellationToken cancellationToken = default) =>
+        RequestAsync("autohand.mcp.setServers", new { servers }, cancellationToken);
 
     public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
         BrowserHandoffCreateParams? parameters = null,

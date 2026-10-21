@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Autohand.CodeAgentSdk;
 
 /// <summary>
@@ -146,6 +148,42 @@ public sealed class Agent : IAsyncDisposable
 
     public Task<ResetResult> ResetAsync(CancellationToken cancellationToken = default) =>
         _sdk.ResetAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetBrowserCapabilitiesAsync(int protocolVersion, string extensionVersion, IReadOnlyList<string> tools, CancellationToken cancellationToken = default) =>
+        _sdk.SetBrowserCapabilitiesAsync(protocolVersion, extensionVersion, tools, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMaxThinkingTokensAsync(int? maxThinkingTokens, CancellationToken cancellationToken = default) =>
+        _sdk.SetMaxThinkingTokensAsync(maxThinkingTokens, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetSupportedModelsAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetSupportedModelsAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetContextUsageAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetContextUsageAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReloadPluginsAsync(CancellationToken cancellationToken = default) =>
+        _sdk.ReloadPluginsAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> GetAccountInfoAsync(CancellationToken cancellationToken = default) =>
+        _sdk.GetAccountInfoAsync(cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ToggleMcpServerAsync(string serverName, bool enabled, CancellationToken cancellationToken = default) =>
+        _sdk.ToggleMcpServerAsync(serverName, enabled, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> ReconnectMcpServerAsync(string serverName, CancellationToken cancellationToken = default) =>
+        _sdk.ReconnectMcpServerAsync(serverName, cancellationToken);
+
+    /// <summary>Calls the corresponding current CLI runtime control.</summary>
+    public Task<JsonElement> SetMcpServersAsync(IReadOnlyDictionary<string, object> servers, CancellationToken cancellationToken = default) =>
+        _sdk.SetMcpServersAsync(servers, cancellationToken);
 
     public Task<BrowserHandoffCreateResult> CreateBrowserHandoffAsync(
         BrowserHandoffCreateParams? parameters = null,

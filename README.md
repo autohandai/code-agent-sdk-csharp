@@ -274,3 +274,5 @@ The test suite includes structured-output parsing tests and example inventory ch
 - SDK docs: https://autohand.ai/docs/agent-sdk/
 - Issues: https://github.com/autohandai/code-agent-sdk-csharp/issues
 - Security reports: security@autohand.ai
+
+See [CLI compatibility and migration notes](docs/cli-compatibility.md) for this unreleased source revision, including provider startup settings, complete notifications and ephemeral sessions.

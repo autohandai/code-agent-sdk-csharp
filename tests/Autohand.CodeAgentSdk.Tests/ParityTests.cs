@@ -10,6 +10,26 @@ namespace Autohand.CodeAgentSdk.Tests;
 public sealed class ParityTests
 {
     [Fact]
+    public async Task CurrentRuntimeControlsPreserveNullAndFalse()
+    {
+        var transport = new FakeTransport();
+        await using var sdk = new AutohandSdk(new AutohandOptions(), transport);
+        await sdk.StartAsync();
+        await sdk.SetBrowserCapabilitiesAsync(2, "1.0.0", ["browser_navigate"]);
+        await sdk.SetMaxThinkingTokensAsync(null);
+        await sdk.GetSupportedModelsAsync();
+        await sdk.GetContextUsageAsync();
+        await sdk.ReloadPluginsAsync();
+        await sdk.GetAccountInfoAsync();
+        await sdk.ToggleMcpServerAsync("files", false);
+        await sdk.ReconnectMcpServerAsync("files");
+        await sdk.SetMcpServersAsync(new Dictionary<string, object> { ["files"] = new { command = "server", args = Array.Empty<string>() } });
+        Assert.Equal(new[] { "autohand.browserCapabilities.set", "autohand.maxThinkingTokensSet", "autohand.getSupportedModels", "autohand.getContextUsage", "autohand.reloadPlugins", "autohand.getAccountInfo", "autohand.mcp.toggleServer", "autohand.mcp.reconnectServer", "autohand.mcp.setServers" }, transport.Calls.Select(call => call.Method));
+        Assert.Equal(JsonValueKind.Null, transport.Call("autohand.maxThinkingTokensSet").Parameters.GetProperty("maxThinkingTokens").ValueKind);
+        Assert.False(transport.Call("autohand.mcp.toggleServer").Parameters.GetProperty("enabled").GetBoolean());
+    }
+
+    [Fact]
     public void CurrentRuntimeOptionsMapToExactCliFlags()
     {
         var transport = new Transport(new AutohandOptions
@@ -46,7 +66,8 @@ public sealed class ParityTests
         Assert.Equal("SYSTEM.md", ValueAfter(args, "--system-prompt-file"));
         Assert.Equal("mcp.json", ValueAfter(args, "--mcp-config"));
         Assert.Equal(".autohand/plugins", ValueAfter(args, "--plugin-dir"));
-        Assert.Contains("--persist-session", args);
+        Assert.DoesNotContain("--persist-session", args);
+        Assert.DoesNotContain("--session-id", args);
         Assert.Contains("--agents-md", args);
         Assert.Contains("--agents-md-create", args);
         Assert.Equal("AGENTS.md", ValueAfter(args, "--agents-md-path"));
@@ -106,7 +127,7 @@ public sealed class ParityTests
         Assert.Equal(
             new[]
             {
-                "autohand.applyFlagSettings",
+                "autohand.getState",
                 "autohand.goal.create",
                 "autohand.goal.get",
                 "autohand.goal.update",
@@ -394,7 +415,7 @@ public sealed class ParityTests
     [Fact]
     public async Task StartupFailureStopsThePartiallyStartedTransport()
     {
-        var transport = new FakeTransport { ThrowOnMethod = "autohand.applyFlagSettings" };
+        var transport = new FakeTransport { ThrowOnMethod = "autohand.getState" };
         await using var sdk = new AutohandSdk(new AutohandOptions
         {
             Features = new FeatureFlagSettings { SlashGoal = true },

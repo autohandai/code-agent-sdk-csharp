@@ -2,6 +2,9 @@ namespace Autohand.CodeAgentSdk;
 
 public abstract record SdkEvent(string Type, JsonElement Raw)
 {
+    /// <summary>Original JSON-RPC notification method, including future methods.</summary>
+    public string? Method { get; init; }
+
     /// <summary>The CLI-provided event timestamp, or null for legacy/malformed payloads.</summary>
     public string? Timestamp =>
         Raw.ValueKind == JsonValueKind.Object &&
@@ -260,9 +263,9 @@ internal static class SdkEventParser
             ? default
             : parameters.Clone();
         var methodType = MethodToType(method);
-        var type = IsStrictFeatureType(methodType) ? methodType : GetString(raw, "type") ?? methodType;
+        var type = methodType;
 
-        return type switch
+        SdkEvent packet = type switch
         {
             "step_end" => (SdkEvent?)StepControl.Parse(raw) ?? new UnknownEvent(method, raw),
             "agent_start" => new AgentStartEvent(raw),
@@ -434,6 +437,7 @@ internal static class SdkEventParser
             "learn_progress" => new UnknownEvent(method, raw),
             _ => new UnknownEvent(type, raw),
         };
+        return packet with { Method = method };
     }
 
     private static string MethodToType(string method) =>
@@ -478,6 +482,46 @@ internal static class SdkEventParser
             "autohand.mcp.toolsChanged" => "mcp_tools_changed",
             "autohand.learn.progress" => "learn_progress",
             "autohand.error" => "error",
+            "autohand.ping" => "ping",
+            "autohand.peerUpdate" => "peer_update",
+            "autohand.resourceUpdate" => "resource_update",
+            "autohand.directoryAccessRequest" => "directory_access_request",
+            "autohand.changesBatchStart" => "changes_batch_start",
+            "autohand.changesBatchUpdate" => "changes_batch_update",
+            "autohand.changesBatchEnd" => "changes_batch_end",
+            "autohand.hook.programStatus" => "hook_program_status",
+            "autohand.hook.rateLimit" => "hook_rate_limit",
+            "autohand.hook.computerUseStart" => "hook_computer_use_start",
+            "autohand.hook.computerUseProgress" => "hook_computer_use_progress",
+            "autohand.hook.computerUseError" => "hook_computer_use_error",
+            "autohand.hook.computerUseStop" => "hook_computer_use_stop",
+            "autohand.hook.subagentStart" => "hook_subagent_start",
+            "autohand.hook.subagentProgress" => "hook_subagent_progress",
+            "autohand.hook.subagentMessage" => "hook_subagent_message",
+            "autohand.hook.subagentCancelRequested" => "hook_subagent_cancel_requested",
+            "autohand.hook.reviewStart" => "hook_review_start",
+            "autohand.hook.reviewEnd" => "hook_review_end",
+            "autohand.hook.reviewPaused" => "hook_review_paused",
+            "autohand.hook.reviewFailed" => "hook_review_failed",
+            "autohand.hook.reviewCompleted" => "hook_review_completed",
+            "autohand.automode.start" => "automode_start",
+            "autohand.automode.checkpoint" => "automode_checkpoint",
+            "autohand.automode.pause" => "automode_pause",
+            "autohand.automode.resume" => "automode_resume",
+            "autohand.automode.cancel" => "automode_cancel",
+            "autohand.modeChange" => "mode_change",
+            "autohand.pipe.output" => "pipe_output",
+            "autohand.pipe.complete" => "pipe_complete",
+            "autohand.pipe.error" => "pipe_error",
+            "autohand.learn.installComplete" => "learn_install_complete",
+            "autohand.learn.securityWarning" => "learn_security_warning",
+            "autohand.schedule.triggered" => "schedule_triggered",
+            "autohand.setup.started" => "setup_started",
+            "autohand.setup.stepStart" => "setup_step_start",
+            "autohand.setup.stepComplete" => "setup_step_complete",
+            "autohand.setup.cancelled" => "setup_cancelled",
+            "autohand.setup.error" => "setup_error",
+            "autohand.setup.complete" => "setup_complete",
             _ => method.StartsWith("autohand.", StringComparison.Ordinal)
                 ? method["autohand.".Length..]
                 : method,
@@ -492,31 +536,6 @@ internal static class SdkEventParser
             _ => null,
         };
 
-    private static bool IsStrictFeatureType(string type) =>
-        type is
-            "step_end" or
-            "automode_iteration" or
-            "automode_complete" or
-            "automode_error" or
-            "hook_pre_tool" or
-            "hook_post_tool" or
-            "file_modified" or
-            "hook_pre_prompt" or
-            "hook_post_response" or
-            "hook_session_error" or
-            "hook_stop" or
-            "hook_session_start" or
-            "hook_session_end" or
-            "hook_subagent_stop" or
-            "hook_permission_request" or
-            "hook_notification" or
-            "hook_context_compacted" or
-            "hook_context_overflow" or
-            "hook_context_warning" or
-            "hook_context_critical" or
-            "mcp_invocation_request" or
-            "mcp_tools_changed" or
-            "learn_progress";
 
     private static bool IsValidAutoModeIteration(JsonElement raw) =>
         HasTimestamp(raw) &&
